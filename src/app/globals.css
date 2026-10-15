@@ -1,0 +1,154 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+@custom-variant emerald (&:is(.emerald *));
+@custom-variant violet (&:is(.violet *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* ====== Light (huashui-blue) ====== */
+:root {
+  --background: #f4f6f8;
+  --foreground: #1a1a2e;
+  --card: #ffffff;
+  --card-foreground: #1a1a2e;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a2e;
+  --primary: #004098;
+  --primary-foreground: #ffffff;
+  --secondary: #e8eef6;
+  --secondary-foreground: #003072;
+  --muted: #eef1f4;
+  --muted-foreground: #6e7681;
+  --accent: #003072;
+  --accent-foreground: #ffffff;
+  --destructive: #ea4335;
+  --destructive-foreground: #ffffff;
+  --border: #d0d5dd;
+  --input: #d0d5dd;
+  --ring: #004098;
+  --chart-1: #004098;
+  --chart-2: #1a73e8;
+  --chart-3: #003072;
+  --chart-4: #e6a817;
+  --chart-5: #34a853;
+  --radius: 0.5rem;
+}
+
+/* ====== Dark ====== */
+.dark {
+  --background: #0d1117;
+  --foreground: #e6edf3;
+  --card: #161b22;
+  --card-foreground: #e6edf3;
+  --popover: #161b22;
+  --popover-foreground: #e6edf3;
+  --primary: #5a8cff;
+  --primary-foreground: #0d1117;
+  --secondary: #1c2b3e;
+  --secondary-foreground: #e6edf3;
+  --muted: #21262d;
+  --muted-foreground: #8b949e;
+  --accent: #58a6ff;
+  --accent-foreground: #0d1117;
+  --destructive: #f85149;
+  --destructive-foreground: #ffffff;
+  --border: #30363d;
+  --input: #30363d;
+  --ring: #5a8cff;
+  --chart-1: #58a6ff;
+  --chart-2: #3fb950;
+  --chart-3: #d2991d;
+  --chart-4: #f85149;
+  --chart-5: #db6d28;
+}
+
+/* ====== Emerald ====== */
+.emerald {
+  --background: #f0f5f2;
+  --foreground: #1a2e1e;
+  --card: #ffffff;
+  --card-foreground: #1a2e1e;
+  --popover: #ffffff;
+  --popover-foreground: #1a2e1e;
+  --primary: #0d8c4a;
+  --primary-foreground: #ffffff;
+  --secondary: #e6f5ec;
+  --secondary-foreground: #0a6b38;
+  --muted: #e8f0ea;
+  --muted-foreground: #5a6c5e;
+  --accent: #0a6b38;
+  --accent-foreground: #ffffff;
+  --destructive: #d93025;
+  --destructive-foreground: #ffffff;
+  --border: #d8e8da;
+  --input: #d8e8da;
+  --ring: #0d8c4a;
+}
+
+/* ====== Violet ====== */
+.violet {
+  --background: #f5f2f8;
+  --foreground: #241a2e;
+  --card: #ffffff;
+  --card-foreground: #241a2e;
+  --popover: #ffffff;
+  --popover-foreground: #241a2e;
+  --primary: #6b3fa0;
+  --primary-foreground: #ffffff;
+  --secondary: #f2ecf8;
+  --secondary-foreground: #5a2d8a;
+  --muted: #ece8f0;
+  --muted-foreground: #665a70;
+  --accent: #5a2d8a;
+  --accent-foreground: #ffffff;
+  --destructive: #c5223e;
+  --destructive-foreground: #ffffff;
+  --border: #e0d8ea;
+  --input: #e0d8ea;
+  --ring: #6b3fa0;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}
