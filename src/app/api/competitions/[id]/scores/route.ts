@@ -59,8 +59,12 @@ export async function POST(
     const labelIndex = PROBLEM_LABELS.indexOf(u.problem_label);
     const maxScore = labelIndex >= 0 ? ALL_MAX_SCORES[labelIndex] : 0;
     db.run(
-      `INSERT OR REPLACE INTO scores (member_id, problem_label, score, max_score, updated_at)
-       VALUES (${u.member_id}, ${esc(u.problem_label)}, ${u.score}, ${maxScore}, datetime('now', 'localtime'))`
+      `INSERT INTO scores (member_id, problem_label, score, max_score, updated_at)
+       VALUES (${u.member_id}, ${esc(u.problem_label)}, ${u.score}, ${maxScore}, datetime('now', 'localtime'))
+       ON CONFLICT(member_id, problem_label) DO UPDATE SET
+         score = excluded.score,
+         max_score = excluded.max_score,
+         updated_at = excluded.updated_at`
     );
   }
 

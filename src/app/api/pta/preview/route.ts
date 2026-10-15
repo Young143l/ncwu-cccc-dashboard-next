@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchPtaProblemTypes, fetchPtaAllRankings } from "@/lib/pta-scraper";
+import { fetchPtaAllRankings } from "@/lib/pta-scraper";
 
 export async function POST(req: NextRequest) {
   const { contestId, cookie } = await req.json();

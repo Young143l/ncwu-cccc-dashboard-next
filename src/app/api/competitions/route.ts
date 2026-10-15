@@ -1,23 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb, esc, saveDb } from "@/lib/db";
-import { seedDemoData } from "@/lib/seed";
-import { startPtaSync, stopPtaSync } from "@/lib/pta-sync";
+import { startPtaSync } from "@/lib/pta-sync";
 import { computeStatus } from "@/lib/competition-status";
 
 export async function GET() {
   const db = await getDb();
 
-  const versionResult = db.exec("PRAGMA user_version");
-  const seeded = versionResult.length > 0 ? Number(versionResult[0].values[0][0]) : 0;
-  if (!seeded) {
-    const demoId = seedDemoData(db);
-    db.run("PRAGMA user_version = 1");
-    saveDb();
-    console.log(`Demo competition created (id=${demoId})`);
-  }
-
   const compRows = db.exec(`
-    SELECT c.*, COUNT(DISTINCT t.id) as team_count, COUNT(DISTINCT m.id) as member_count
+    SELECT c.id, c.name, c.created_at, c.status, c.start_time, c.duration_minutes,
+           c.end_time, c.pta_contest_id,
+           COUNT(DISTINCT t.id) as team_count, COUNT(DISTINCT m.id) as member_count
     FROM competitions c
     LEFT JOIN teams t ON t.competition_id = c.id
     LEFT JOIN members m ON m.team_id = t.id
@@ -35,11 +27,13 @@ export async function GET() {
     created_at: v[2],
     status: computeStatus(
       v[4] as string | null,
+      v[6] as string | null,
       v[5] as number | null,
       v[3] as string
     ),
     start_time: v[4],
     duration_minutes: v[5],
+    end_time: v[6],
     pta_contest_id: v[7],
     team_count: v[8],
     member_count: v[9],
@@ -54,6 +48,7 @@ export async function POST(req: NextRequest) {
     name,
     teams: teamData,
     start_time,
+    end_time,
     duration_minutes,
     access_cookie,
     pta_contest_id,
@@ -61,6 +56,7 @@ export async function POST(req: NextRequest) {
     name: string;
     teams: { name: string; members: string[] }[];
     start_time?: string;
+    end_time?: string;
     duration_minutes?: number;
     access_cookie?: string;
     pta_contest_id?: string;
@@ -102,11 +98,12 @@ export async function POST(req: NextRequest) {
   const duration = duration_minutes || 180;
   const cookie = access_cookie || "";
   const ptaId = pta_contest_id || "";
+  const endTime = end_time || "";
   const status =
     start_time && new Date(start_time) > now ? "upcoming" : "active";
 
   db.run(
-    `INSERT INTO competitions (name, status, created_at, start_time, duration_minutes, access_cookie, pta_contest_id) VALUES (${esc(name)}, ${esc(status)}, datetime('now', 'localtime'), ${esc(startTime)}, ${duration}, ${esc(cookie)}, ${esc(ptaId)})`
+    `INSERT INTO competitions (name, status, created_at, start_time, end_time, duration_minutes, access_cookie, pta_contest_id) VALUES (${esc(name)}, ${esc(status)}, datetime('now', 'localtime'), ${esc(startTime)}, ${endTime ? esc(endTime) : "NULL"}, ${duration}, ${esc(cookie)}, ${esc(ptaId)})`
   );
   const compResult = db.exec("SELECT last_insert_rowid()");
   const compId = Number(compResult[0].values[0][0]);

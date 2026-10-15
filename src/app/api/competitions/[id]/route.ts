@@ -4,18 +4,6 @@ import { stopPtaSync, startPtaSync } from "@/lib/pta-sync";
 import { PROBLEM_LABELS, ALL_MAX_SCORES } from "@/types";
 import { computeStatus } from "@/lib/competition-status";
 
-function buildDefaultScores(): Array<{
-  problem_label: string;
-  score: number;
-  max_score: number;
-}> {
-  return PROBLEM_LABELS.map((label, i) => ({
-    problem_label: label,
-    score: 0,
-    max_score: ALL_MAX_SCORES[i] || 0,
-  }));
-}
-
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -24,7 +12,10 @@ export async function GET(
   const compId = parseInt(id);
   const db = await getDb();
 
-  const compRows = db.exec(`SELECT * FROM competitions WHERE id = ${compId}`);
+  const compRows = db.exec(
+    `SELECT id, name, created_at, status, start_time, duration_minutes, access_cookie, pta_contest_id, end_time
+     FROM competitions WHERE id = ${compId}`
+  );
   if (compRows.length === 0 || compRows[0].values.length === 0) {
     return NextResponse.json({ error: "比赛不存在" }, { status: 404 });
   }
@@ -106,12 +97,15 @@ export async function GET(
     created_at: comp[2],
     status: computeStatus(
       comp[4] as string | null,
+      comp[8] as string | null,
       comp[5] as number | null,
       comp[3] as string
     ),
     start_time: comp[4],
     duration_minutes: comp[5],
+    end_time: comp[8],
     pta_contest_id: comp[7],
+    has_cookie: Boolean(comp[6]),
     teams,
   });
 }
@@ -123,13 +117,28 @@ export async function PUT(
   const { id } = await params;
   const compId = parseInt(id);
   const body = await req.json();
-  const { status, teams } = body as {
+  const {
+    status,
+    teams,
+    name,
+    start_time,
+    end_time,
+    duration_minutes,
+    access_cookie,
+    pta_contest_id,
+  } = body as {
     status?: string;
     teams?: Array<{
       id: number;
       name: string;
       members: Array<{ id: number; name: string }>;
     }>;
+    name?: string;
+    start_time?: string;
+    end_time?: string;
+    duration_minutes?: number;
+    access_cookie?: string;
+    pta_contest_id?: string;
   };
 
   const db = await getDb();
@@ -138,8 +147,37 @@ export async function PUT(
     if (!["active", "finished", "upcoming"].includes(status)) {
       return NextResponse.json({ error: "无效的状态" }, { status: 400 });
     }
-    db.run(`UPDATE competitions SET status = ${esc(status)} WHERE id = ${compId}`);
   }
+
+  const sets: string[] = [];
+  if (status) sets.push(`status = ${esc(status)}`);
+  if (typeof name === "string" && name.trim()) {
+    sets.push(`name = ${esc(name.trim())}`);
+  }
+  if (typeof start_time === "string" && start_time.trim()) {
+    sets.push(`start_time = ${esc(start_time.trim())}`);
+  }
+  if (typeof end_time === "string") {
+    // 允许传空字符串清空结束时间（清空后回退到 start_time + duration 判断）
+    sets.push(`end_time = ${end_time.trim() ? esc(end_time.trim()) : "NULL"}`);
+  }
+  if (typeof duration_minutes === "number" && duration_minutes > 0) {
+    sets.push(`duration_minutes = ${Math.round(duration_minutes)}`);
+  }
+  if (typeof access_cookie === "string") {
+    sets.push(`access_cookie = ${esc(access_cookie.trim())}`);
+  }
+  if (typeof pta_contest_id === "string") {
+    sets.push(`pta_contest_id = ${esc(pta_contest_id.trim())}`);
+  }
+
+  if (sets.length > 0) {
+    db.run(`UPDATE competitions SET ${sets.join(", ")} WHERE id = ${compId}`);
+  }
+
+  // PTA 配置变更后，按新配置重启自动同步定时器
+  const ptaConfigChanged =
+    typeof access_cookie === "string" || typeof pta_contest_id === "string";
 
   if (teams) {
     const existingRows = db.exec(`SELECT id FROM teams WHERE competition_id = ${compId}`);
@@ -219,6 +257,23 @@ export async function PUT(
   }
 
   saveDb();
+
+  if (ptaConfigChanged) {
+    stopPtaSync(compId);
+    const configRows = db.exec(
+      `SELECT access_cookie, pta_contest_id FROM competitions WHERE id = ${compId}`
+    );
+    const config =
+      configRows.length > 0 && configRows[0].values.length > 0
+        ? configRows[0].values[0]
+        : null;
+    const cookie = ((config?.[0] as string) || "").trim();
+    const ptaContestId = ((config?.[1] as string) || "").trim();
+    if (cookie && ptaContestId) {
+      startPtaSync(compId, 60);
+    }
+  }
+
   return NextResponse.json({ id: compId });
 }
 

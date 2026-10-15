@@ -9,6 +9,7 @@ import {
   type Team, type Member, type QuestionScore,
 } from "@/types";
 import { recalcMember, recalcTeam } from "@/lib/score-calc";
+import { parseCompetitionTime } from "@/lib/competition-status";
 import { useTeamScoreFlash } from "@/hooks/use-score-animation";
 
 function convertDetail(detail: {
@@ -100,6 +101,9 @@ function useFirstBlood(): FirstBlood[] {
         const score = member.scores.find((s) => s.problemLabel === label);
         if (score && score.score >= score.maxScore && score.maxScore > 0) {
           const acceptTime = score.acceptTime ?? 0;
+          // acceptTime 为 0 说明数据源没有提交时间（如复盘题目集、手工录入分数），
+          // 这种情况不能归为一血，否则名单里第一个人会包揽所有题的一血。
+          if (acceptTime <= 0) continue;
           if (!best || acceptTime < best.acceptTime) {
             best = {
               problemLabel: label,
@@ -158,13 +162,11 @@ interface CountdownState {
   elapsedMs: number;
 }
 
-function parseStartTime(s: string): number {
-  const iso = s.includes("T") ? s : s.replace(" ", "T");
-  const withZone = /Z|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}+08:00`;
-  return new Date(withZone).getTime();
-}
-
-function useCountdown(startTime: string | null, durationMinutes: number | null): CountdownState {
+function useCountdown(
+  startTime: string | null,
+  endTime: string | null,
+  durationMinutes: number | null
+): CountdownState {
   const [state, setState] = useState<CountdownState>({
     phase: "unknown",
     remainingMs: 0,
@@ -173,15 +175,19 @@ function useCountdown(startTime: string | null, durationMinutes: number | null):
   });
 
   useEffect(() => {
-    if (!startTime) {
+    const start = parseCompetitionTime(startTime);
+    if (!start) {
       setState({ phase: "unknown", remainingMs: 0, totalMs: 0, elapsedMs: 0 });
       return;
     }
-    const start = parseStartTime(startTime);
-    const totalMs = (durationMinutes || 180) * 60 * 1000;
+    const startMs = start.getTime();
+    const end = parseCompetitionTime(endTime);
+    const totalMs = end
+      ? Math.max(end.getTime() - startMs, 0)
+      : (durationMinutes || 180) * 60 * 1000;
     const update = () => {
       const now = Date.now();
-      const elapsedMs = now - start;
+      const elapsedMs = now - startMs;
       if (elapsedMs < 0) {
         setState({ phase: "upcoming", remainingMs: -elapsedMs, totalMs, elapsedMs: 0 });
       } else if (elapsedMs >= totalMs) {
@@ -193,7 +199,7 @@ function useCountdown(startTime: string | null, durationMinutes: number | null):
     update();
     const timer = setInterval(update, 1000);
     return () => clearInterval(timer);
-  }, [startTime, durationMinutes]);
+  }, [startTime, endTime, durationMinutes]);
 
   return state;
 }
@@ -383,16 +389,18 @@ function TeamRankRow({ team, rank }: { team: Team; rank: number }) {
 function ProjectorContent({
   compName,
   startTime,
+  endTime,
   durationMinutes,
 }: {
   compName: string;
   startTime: string | null;
+  endTime: string | null;
   durationMinutes: number | null;
 }) {
   const { state } = useScore();
   const firstBlood = useFirstBlood();
   const passRates = usePassRate();
-  const countdown = useCountdown(startTime, durationMinutes);
+  const countdown = useCountdown(startTime, endTime, durationMinutes);
   const listRef = useRef<HTMLDivElement>(null);
   const scrollPauseRef = useRef(false);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -538,6 +546,7 @@ export default function ProjectorPage() {
   const [teams, setTeams] = useState<Team[] | null>(null);
   const [compName, setCompName] = useState("");
   const [startTime, setStartTime] = useState<string | null>(null);
+  const [endTime, setEndTime] = useState<string | null>(null);
   const [durationMinutes, setDurationMinutes] = useState<number | null>(null);
   const [error, setError] = useState("");
 
@@ -547,6 +556,7 @@ export default function ProjectorPage() {
       .then((data) => {
         setCompName(data.name);
         setStartTime(data.start_time);
+        setEndTime(data.end_time);
         setDurationMinutes(data.duration_minutes);
         setTeams(convertDetail(data));
       })
@@ -575,6 +585,7 @@ export default function ProjectorPage() {
       <ProjectorContent
         compName={compName}
         startTime={startTime}
+        endTime={endTime}
         durationMinutes={durationMinutes}
       />
     </ScoreProvider>

@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
   res.cookies.set(ADMIN_COOKIE, signCookieValue(), {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.COOKIE_SECURE !== "false",
     path: "/",
   });
   return res;

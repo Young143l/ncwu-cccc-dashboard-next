@@ -9,7 +9,6 @@ import { AlertCircle, MoreVertical, Trophy } from "lucide-react";
 import {
   getCompetitions,
   deleteCompetition,
-  updateCompetitionStatus,
   type CompetitionSummary,
 } from "@/services/api";
 import { PageHeader } from "@/components/simple/page-header";
@@ -29,7 +28,6 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<CompetitionSummary | null>(null);
-  const [confirmFinish, setConfirmFinish] = useState<CompetitionSummary | null>(null);
 
   const load = async () => {
     setError(null);
@@ -51,12 +49,6 @@ export default function DashboardPage() {
   const handleDelete = async () => {
     if (!confirmDelete) return;
     await deleteCompetition(confirmDelete.id);
-    await load();
-  };
-
-  const handleFinish = async () => {
-    if (!confirmFinish) return;
-    await updateCompetitionStatus(confirmFinish.id, "finished");
     await load();
   };
 
@@ -171,13 +163,6 @@ export default function DashboardPage() {
                           }
                         />
                         <DropdownMenuContent align="end">
-                          {comp.status === "active" && (
-                            <DropdownMenuItem
-                              onClick={() => setConfirmFinish(comp)}
-                            >
-                              结束比赛
-                            </DropdownMenuItem>
-                          )}
                           <DropdownMenuItem
                             variant="destructive"
                             onClick={() => setConfirmDelete(comp)}
@@ -207,19 +192,6 @@ export default function DashboardPage() {
         confirmLabel="删除"
         destructive
         onConfirm={handleDelete}
-      />
-
-      <ConfirmDialog
-        open={!!confirmFinish}
-        onOpenChange={(v) => !v && setConfirmFinish(null)}
-        title="确认结束比赛"
-        description={
-          <span>
-            确定要将比赛「{confirmFinish?.name}」标记为已结束吗？结束后无法恢复活动状态。
-          </span>
-        }
-        confirmLabel="结束"
-        onConfirm={handleFinish}
       />
     </div>
   );

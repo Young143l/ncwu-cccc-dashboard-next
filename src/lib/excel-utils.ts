@@ -40,10 +40,13 @@ export function parseTeamsFromExcel(buffer: ArrayBuffer): ExcelTeamData[] {
 
 export function downloadTeamTemplate(): void {
   const wb = XLSX.utils.book_new();
+  const memberHeaders = Array.from({ length: 10 }, (_, i) => `队员${i + 1}`);
+  const sampleMembers = (start: number) =>
+    Array.from({ length: 10 }, (_, i) => `选手${start + i}`);
   const data = [
-    ["队伍名", "队员1", "队员2", "队员3", "队员4", "队员5", "队员6", "队员7", "队员8"],
-    ["ACM 一队", "张三", "李四", "王五", "赵六", "孙七", "周八", "吴九", "郑十"],
-    ["ACM 二队", "陈一", "刘二", "黄三", "林四", "杨五", "朱六", "马七", "高八"],
+    ["队伍名", ...memberHeaders],
+    ["天梯赛一队", ...sampleMembers(1)],
+    ["天梯赛二队", ...sampleMembers(11)],
   ];
   const ws = XLSX.utils.aoa_to_sheet(data);
   XLSX.utils.book_append_sheet(wb, ws, "队伍信息");

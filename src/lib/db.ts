@@ -2,10 +2,16 @@ import initSqlJs, { type Database } from "sql.js";
 import fs from "fs";
 import path from "path";
 
-let db: Database | null = null;
-let dbPath: string | null = null;
+// Next 会为 instrumentation 与各路由分别打包，模块级变量不共享，
+// 必须把连接挂到 globalThis，否则会出现两个互不相干的内存库并互相覆盖落盘文件。
+const globalForDb = globalThis as unknown as {
+  __dashboardDb?: Database | null;
+  __dashboardDbPath?: string | null;
+};
 
 export function saveDb(): void {
+  const db = globalForDb.__dashboardDb;
+  const dbPath = globalForDb.__dashboardDbPath;
   if (db && dbPath) {
     const data = db.export();
     fs.writeFileSync(dbPath, Buffer.from(data));
@@ -13,11 +19,14 @@ export function saveDb(): void {
 }
 
 export async function getDb(): Promise<Database> {
-  if (db) return db;
+  if (globalForDb.__dashboardDb) return globalForDb.__dashboardDb;
 
   const SQL = await initSqlJs();
 
-  dbPath = path.join(process.cwd(), "data", "dashboard.db");
+  const dbPath = path.join(process.cwd(), "data", "dashboard.db");
+  globalForDb.__dashboardDbPath = dbPath;
+
+  let db: Database;
 
   const dir = path.dirname(dbPath);
   if (!fs.existsSync(dir)) {
@@ -31,6 +40,8 @@ export async function getDb(): Promise<Database> {
     db = new SQL.Database();
   }
 
+  globalForDb.__dashboardDb = db;
+
   db.run("PRAGMA foreign_keys = ON");
 
   db.run(`
@@ -42,7 +53,8 @@ export async function getDb(): Promise<Database> {
       start_time TEXT,
       duration_minutes INTEGER DEFAULT 180,
       access_cookie TEXT DEFAULT '',
-      pta_contest_id TEXT DEFAULT ''
+      pta_contest_id TEXT DEFAULT '',
+      end_time TEXT
     )
   `);
 
@@ -78,6 +90,16 @@ export async function getDb(): Promise<Database> {
       UNIQUE(member_id, problem_label)
     )
   `);
+
+  // 老库文件补列：end_time 是后续新增的字段，ALTER TABLE 会追加到表尾，
+  // 因此 CREATE TABLE 里也要把它放在最后一列，保证新旧库列顺序一致。
+  const compCols = db.exec("PRAGMA table_info(competitions)");
+  const hasEndTime =
+    compCols.length > 0 &&
+    compCols[0].values.some((row) => row[1] === "end_time");
+  if (!hasEndTime) {
+    db.run("ALTER TABLE competitions ADD COLUMN end_time TEXT");
+  }
 
   saveDb();
 

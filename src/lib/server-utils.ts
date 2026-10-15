@@ -1,12 +1,6 @@
 import type { Team, Member } from "@/types";
-import {
-  BASIC_SCORES, ADVANCED_SCORES, TOP_SCORES,
-  BASIC_THRESHOLD, ADVANCED_THRESHOLD,
-  MEMBER_BASIC_THRESHOLD, MEMBER_ADVANCED_THRESHOLD,
-  PROBLEM_LABELS, ALL_MAX_SCORES,
-} from "@/types";
+import { PROBLEM_LABELS, ALL_MAX_SCORES } from "@/types";
 import { recalcMember, recalcTeam } from "@/lib/score-calc";
-import { getDb } from "@/lib/db";
 
 export interface CompetitionApiData {
   id: number;
@@ -51,17 +45,4 @@ export function convertDetailToTeams(data: CompetitionApiData): Team[] {
     });
     return recalcTeam({ id: String(team.id), name: team.name, members });
   });
-}
-
-export async function fetchCompetitionData(compId: number): Promise<CompetitionApiData | null> {
-  try {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-    const res = await fetch(`${baseUrl}/api/competitions/${compId}`, {
-      cache: "no-store",
-    });
-    if (!res.ok) return null;
-    return res.json();
-  } catch {
-    return null;
-  }
 }

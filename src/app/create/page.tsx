@@ -13,6 +13,7 @@ import { ExcelImport } from "@/components/ui/excel-import";
 import { PageHeader } from "@/components/simple/page-header";
 import { ConfirmDialog } from "@/components/simple/confirm-dialog";
 import type { ExcelTeamData } from "@/lib/excel-utils";
+import { formatLocalDateTime } from "@/lib/competition-status";
 
 interface TeamEntry {
   id: number;
@@ -35,6 +36,7 @@ export default function CreateCompetitionPage() {
   const [compName, setCompName] = useState("");
   const [durationMinutes, setDurationMinutes] = useState(180);
   const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
   const [fetching, setFetching] = useState(false);
   const [fetched, setFetched] = useState(false);
   const [teams, setTeams] = useState<TeamEntry[]>([
@@ -81,6 +83,7 @@ export default function CreateCompetitionPage() {
       const data = await res.json();
       setCompName(data.name);
       setStartTime(data.startAt ? data.startAt.replace("T", " ") : "");
+      setEndTime(data.endAt ? data.endAt.replace("T", " ") : "");
       setDurationMinutes(data.durationMinutes || 180);
       setFetched(true);
     } catch {
@@ -142,6 +145,7 @@ export default function CreateCompetitionPage() {
         name: compName.trim(),
         teams: validTeams.map((t) => ({ name: t.name, members: t.members })),
         start_time: startTime || undefined,
+        end_time: endTime || undefined,
         duration_minutes: durationMinutes,
         access_cookie: cookie.trim(),
         pta_contest_id: ptaId.trim(),
@@ -374,7 +378,11 @@ export default function CreateCompetitionPage() {
                 >
                   <div className="text-muted-foreground">开始时间 / 时长</div>
                   <div className="font-medium">
-                    {startTime || "—"} &middot; {durationMinutes} 分钟
+                    {formatLocalDateTime(startTime) || "—"}
+                    {formatLocalDateTime(endTime)
+                      ? ` ~ ${formatLocalDateTime(endTime).slice(11)}`
+                      : ""}
+                    &nbsp;&middot;&nbsp;{durationMinutes} 分钟
                   </div>
                 </button>
                 <button

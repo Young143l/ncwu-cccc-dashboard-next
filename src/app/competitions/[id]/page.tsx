@@ -18,8 +18,10 @@ import { ExcelImport } from "@/components/ui/excel-import";
 import { MoreVertical, RefreshCw, Trophy, X, Pencil, Loader2, ExternalLink, Download } from "lucide-react";
 import {
   getCompetition,
+  getSyncStatus,
   syncNow,
   type CompetitionDetail,
+  type PtaSyncStatus,
 } from "@/services/api";
 import { ScoreProvider } from "@/context/score-context";
 import { EmbeddedRank } from "@/components/simple/embedded-rank";
@@ -29,7 +31,9 @@ import { ConfirmDialog } from "@/components/simple/confirm-dialog";
 import { StatusBadge } from "@/components/simple/status-badge";
 import { TeamFormDialog } from "@/components/simple/team-form-dialog";
 import { MemberBadges } from "@/components/simple/member-badges";
+import { PtaConfigDialog } from "@/components/simple/pta-config-dialog";
 import { convertDetailToTeams } from "@/lib/server-utils";
+import { formatLocalDateTime, parseCompetitionTime } from "@/lib/competition-status";
 import { PROBLEM_LABELS, ALL_MAX_SCORES, type QuestionScore } from "@/types";
 import { recalcMember, recalcTeam } from "@/lib/score-calc";
 import {
@@ -54,6 +58,12 @@ export default function CompetitionDetailPage() {
     name: string;
   } | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<PtaSyncStatus | null>(null);
+  const [syncMessage, setSyncMessage] = useState<{
+    type: "ok" | "error";
+    text: string;
+  } | null>(null);
+  const [configOpen, setConfigOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const load = useCallback(async () => {
@@ -72,13 +82,46 @@ export default function CompetitionDetailPage() {
     load();
   }, [load]);
 
+  const loadSyncStatus = useCallback(async () => {
+    if (!id) return;
+    try {
+      setSyncStatus(await getSyncStatus(parseInt(id)));
+    } catch {
+      // 轮询失败静默处理，不打断页面
+    }
+  }, [id]);
+
+  useEffect(() => {
+    loadSyncStatus();
+    const timer = setInterval(loadSyncStatus, 15_000);
+    return () => clearInterval(timer);
+  }, [loadSyncStatus]);
+
   const handleSync = async () => {
     if (!id) return;
     setSyncing(true);
+    setSyncMessage(null);
     try {
       await syncNow(parseInt(id));
+      const status = await getSyncStatus(parseInt(id));
+      setSyncStatus(status);
+      if (status.lastError) {
+        setSyncMessage({ type: "error", text: `同步失败：${status.lastError}` });
+      } else if (status.matchedCount !== null) {
+        setSyncMessage({
+          type: "ok",
+          text: `同步完成，匹配 ${status.matchedCount} 名选手`,
+        });
+      } else {
+        setSyncMessage({ type: "ok", text: "同步完成" });
+      }
       await load();
       setRefreshKey((v) => v + 1);
+    } catch (err) {
+      setSyncMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "同步失败",
+      });
     } finally {
       setSyncing(false);
     }
@@ -218,6 +261,14 @@ export default function CompetitionDetailPage() {
     );
   }
 
+  const startMs = parseCompetitionTime(detail.start_time)?.getTime() ?? null;
+  const endMs = parseCompetitionTime(detail.end_time)?.getTime() ?? null;
+  // 有结束时间以实际时间窗口为准，避免 PTA 题目集的“可作答窗口”时长（可能上百天）误导
+  const displayDurationMinutes =
+    startMs !== null && endMs !== null && endMs > startMs
+      ? Math.round((endMs - startMs) / 60000)
+      : detail.duration_minutes;
+
   return (
     <div className="min-h-screen bg-background">
       <PageHeader
@@ -240,10 +291,20 @@ export default function CompetitionDetailPage() {
         {/* 比赛信息 */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">比赛信息</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">比赛信息</CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setConfigOpen(true)}
+              >
+                <Pencil />
+                编辑配置
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground">状态</span>
                 <div className="mt-1">
@@ -253,13 +314,19 @@ export default function CompetitionDetailPage() {
               <div>
                 <span className="text-muted-foreground">开始时间</span>
                 <p className="font-medium mt-1">
-                  {detail.start_time?.replace("T", " ") || "-"}
+                  {formatLocalDateTime(detail.start_time) || "-"}
+                </p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">结束时间</span>
+                <p className="font-medium mt-1">
+                  {formatLocalDateTime(detail.end_time) || "未设置"}
                 </p>
               </div>
               <div>
                 <span className="text-muted-foreground">时长</span>
                 <p className="font-medium mt-1">
-                  {detail.duration_minutes || "-"} 分钟
+                  {displayDurationMinutes || "-"} 分钟
                 </p>
               </div>
               <div>
@@ -277,6 +344,56 @@ export default function CompetitionDetailPage() {
                   {detail.pta_contest_id}
                 </code>
               </div>
+            )}
+            <div className="mt-3 text-sm flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="text-muted-foreground">PTA 同步</span>
+              {syncStatus?.running ? (
+                syncStatus.lastError ? (
+                  <span className="text-destructive">
+                    异常：{syncStatus.lastError}
+                  </span>
+                ) : (
+                  <span className="text-emerald-600">运行中（每 60 秒）</span>
+                )
+              ) : (
+                <span className="text-muted-foreground">未启用</span>
+              )}
+              {!syncStatus?.running && syncStatus?.lastError && (
+                <span className="text-destructive">
+                  上次失败：{syncStatus.lastError}
+                </span>
+              )}
+              {syncStatus?.lastSuccessAt ? (
+                <span className="text-muted-foreground">
+                  最后成功 {syncStatus.lastSuccessAt}
+                </span>
+              ) : (
+                syncStatus?.lastAttemptAt && (
+                  <span className="text-muted-foreground">
+                    最后尝试 {syncStatus.lastAttemptAt}
+                  </span>
+                )
+              )}
+              {syncStatus?.lastSuccessAt && syncStatus.matchedCount !== null && (
+                <span className="text-muted-foreground">
+                  匹配 {syncStatus.matchedCount} 人
+                  {syncStatus.unmatchedCount
+                    ? `，未匹配 ${syncStatus.unmatchedCount} 人（名单姓名不一致）`
+                    : ""}
+                </span>
+              )}
+            </div>
+            {syncMessage && (
+              <p
+                className={
+                  syncMessage.type === "error"
+                    ? "mt-2 text-sm text-destructive"
+                    : "mt-2 text-sm text-muted-foreground"
+                }
+                role="status"
+              >
+                {syncMessage.text}
+              </p>
             )}
           </CardContent>
         </Card>
@@ -457,6 +574,27 @@ export default function CompetitionDetailPage() {
         initialName={editingTeam?.name}
         initialMembers={editingTeam?.members}
         onSave={handleSaveTeam}
+      />
+
+      {/* 比赛 / PTA 配置 Dialog */}
+      <PtaConfigDialog
+        open={configOpen}
+        onOpenChange={setConfigOpen}
+        competition={{
+          id: detail.id,
+          name: detail.name,
+          pta_contest_id: detail.pta_contest_id,
+          start_time: detail.start_time,
+          end_time: detail.end_time,
+          duration_minutes: detail.duration_minutes,
+          has_cookie: detail.has_cookie,
+        }}
+        onSaved={async () => {
+          await load();
+          await loadSyncStatus();
+          setSyncMessage(null);
+          setRefreshKey((v) => v + 1);
+        }}
       />
 
       {/* 队伍删除确认 */}

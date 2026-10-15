@@ -65,8 +65,12 @@ export async function POST(
       const maxScore = labelToMaxScore[label] || 0;
       const acceptTime = player.acceptTime?.[label] || 0;
       db.run(
-        `INSERT OR REPLACE INTO scores (member_id, problem_label, score, max_score, accept_time, updated_at)
-         VALUES (${memberId}, ${esc(label)}, ${Math.round(score) || 0}, ${maxScore}, ${acceptTime}, datetime('now', 'localtime'))`
+        `INSERT INTO scores (member_id, problem_label, score, max_score, accept_time, updated_at)
+         VALUES (${memberId}, ${esc(label)}, ${Math.round(score) || 0}, ${maxScore}, ${acceptTime}, datetime('now', 'localtime'))
+         ON CONFLICT(member_id, problem_label) DO UPDATE SET
+           score = excluded.score,
+           max_score = excluded.max_score,
+           updated_at = excluded.updated_at`
       );
     }
   }
