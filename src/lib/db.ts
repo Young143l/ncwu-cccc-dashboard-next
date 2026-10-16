@@ -15,6 +15,9 @@ export function saveDb(): void {
   if (db && dbPath) {
     const data = db.export();
     fs.writeFileSync(dbPath, Buffer.from(data));
+    // sql.js 的 export() 内部会 close + reopen 连接，而 foreign_keys 是连接级设置，
+    // 不重新打开的话第一次写库之后级联删除就静默失效（删比赛/换队会残留孤儿数据）。
+    db.run("PRAGMA foreign_keys = ON");
   }
 }
 
@@ -100,6 +103,12 @@ export async function getDb(): Promise<Database> {
   if (!hasEndTime) {
     db.run("ALTER TABLE competitions ADD COLUMN end_time TEXT");
   }
+
+  // 历史库清理：早期版本 saveDb() 后外键失效，删除比赛/队伍时未级联，
+  // 会残留下已不可达的队伍、成员与分数行，冷启动时清一次（幂等）。
+  db.run("DELETE FROM teams WHERE competition_id NOT IN (SELECT id FROM competitions)");
+  db.run("DELETE FROM members WHERE team_id NOT IN (SELECT id FROM teams)");
+  db.run("DELETE FROM scores WHERE member_id NOT IN (SELECT id FROM members)");
 
   saveDb();
 
