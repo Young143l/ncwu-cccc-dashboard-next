@@ -238,9 +238,6 @@ function FirstBloodPanel({ firstBlood }: { firstBlood: FirstBlood[] }) {
         一血榜
       </h2>
       <div className="space-y-2 md:flex-1 md:overflow-hidden">
-        {pageItems.length === 0 && (
-          <p className="text-gray-500 text-sm">暂无数据</p>
-        )}
         {pageItems.map((fb) => (
           <div
             key={fb.problemLabel}
@@ -519,7 +516,8 @@ function ProjectorContent({
       <div className="flex-1 flex flex-col md:flex-row gap-0 md:overflow-hidden">
         {/* Left sidebar: First Blood + Pass Rate（窄屏移到排名下方） */}
         <div className="order-2 md:order-1 w-full md:w-[360px] md:shrink-0 border-t md:border-t-0 md:border-r border-white/10 flex flex-col md:overflow-hidden">
-          <FirstBloodPanel firstBlood={firstBlood} />
+          {/* 一血依赖每题提交时间；复盘/练习类题目集与手工录入拿不到时间，这种情况不显示一血榜，把空间让给通过率 */}
+          {firstBlood.length > 0 && <FirstBloodPanel firstBlood={firstBlood} />}
           <PassRatePanel passRates={passRates} />
         </div>
 
