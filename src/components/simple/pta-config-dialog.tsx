@@ -14,6 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateCompetition } from "@/services/api";
 import { toDatetimeLocalValue } from "@/lib/competition-status";
+import { PtaCookieField } from "@/components/simple/pta-cookie-field";
+import { toPtaCookieHeader } from "@/lib/pta-cookie";
 
 export interface PtaConfigTarget {
   id: number;
@@ -89,7 +91,7 @@ export function PtaConfigDialog({
         ...(clearCookie
           ? { access_cookie: "" }
           : cookie.trim()
-            ? { access_cookie: cookie.trim() }
+            ? { access_cookie: toPtaCookieHeader(cookie) }
             : {}),
       });
       await onSaved();
@@ -140,13 +142,12 @@ export function PtaConfigDialog({
           </div>
           <div className="space-y-2">
             <Label htmlFor="pta-cookie">PTA Cookie</Label>
-            <textarea
+            <PtaCookieField
               id="pta-cookie"
               value={cookie}
-              onChange={(e) => setCookie(e.target.value)}
-              placeholder="粘贴新的 PTA Cookie；留空表示保持现有 Cookie 不变"
+              onChange={setCookie}
               disabled={saving || clearCookie}
-              className="w-full h-24 px-3 py-2 rounded-md border border-input bg-background text-sm disabled:opacity-50"
+              placeholder="粘贴等号后面那串；留空表示保持现有 Cookie 不变"
             />
             <p className="text-xs text-muted-foreground">{cookieStateText}</p>
             {competition.has_cookie && (
