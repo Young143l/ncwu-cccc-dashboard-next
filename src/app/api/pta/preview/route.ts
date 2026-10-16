@@ -42,16 +42,22 @@ export async function POST(req: NextRequest) {
     const problemCount = problemLabels.length;
 
     const rankings = await fetchPtaAllRankings(contestId, cookie);
-    const participants: Array<{ name: string }> = [];
+    const participants: Array<{ name: string; studentNumber: string | null }> = [];
+    const seen = new Set<string>();
 
     for (const entry of rankings.commonRankings) {
       const studentUser = rankings.studentUserById?.[entry.user.studentUserId];
       const displayName = studentUser?.name?.trim()
         || rankings.userById[entry.user.userId]?.nickname?.trim()
-        || "未知";
-      if (displayName !== "未知" && !participants.some(p => p.name === displayName)) {
-        participants.push({ name: displayName });
-      }
+        || "";
+      if (!displayName) continue;
+
+      const studentNumber = studentUser?.studentNumber?.trim() || null;
+      const key = studentNumber ? `${studentNumber} ${displayName}` : displayName;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      participants.push({ name: displayName, studentNumber });
     }
 
     return NextResponse.json({

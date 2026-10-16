@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { ExcelImport } from "@/components/ui/excel-import";
 import { downloadTeamsExcel } from "@/lib/excel-utils";
+import { buildMemberSheet, splitStudentName } from "@/lib/excel-utils";
 import { MoreVertical, RefreshCw, Trophy, X, Pencil, Loader2, ExternalLink, Download } from "lucide-react";
 import {
   getCompetition,
@@ -230,7 +231,12 @@ export default function CompetitionDetailPage() {
         name: team.name,
         members: team.members.map((m) => m.name),
       })),
-      `${detail.name}-队伍名单`
+      `${detail.name}-队伍名单`,
+      buildMemberSheet(
+        detail.teams.flatMap((team) =>
+          team.members.map((m) => splitStudentName(m.name))
+        )
+      )
     );
   };
 

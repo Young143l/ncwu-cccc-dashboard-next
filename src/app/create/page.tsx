@@ -7,13 +7,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Check } from "lucide-react";
+import { Check, Download } from "lucide-react";
 import { createCompetition } from "@/services/api";
 import { ExcelImport } from "@/components/ui/excel-import";
 import { PageHeader } from "@/components/simple/page-header";
 import { ConfirmDialog } from "@/components/simple/confirm-dialog";
+import { PtaCookieField } from "@/components/simple/pta-cookie-field";
 import type { ExcelTeamData } from "@/lib/excel-utils";
+import { downloadTeamsExcel, splitIntoTeams, buildMemberSheet } from "@/lib/excel-utils";
 import { formatLocalDateTime } from "@/lib/competition-status";
+import { toPtaCookieHeader } from "@/lib/pta-cookie";
 
 interface TeamEntry {
   id: number;
@@ -44,7 +47,9 @@ export default function CreateCompetitionPage() {
   ]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [showCookie, setShowCookie] = useState(false);
+  const [participants, setParticipants] = useState<
+    Array<{ name: string; studentNumber: string | null }>
+  >([]);
   const [currentStep, setCurrentStep] = useState<StepId>("pta");
   const [confirmSubmit, setConfirmSubmit] = useState(false);
   const nextIdRef = useRef(2);
@@ -71,7 +76,10 @@ export default function CreateCompetitionPage() {
       const res = await fetch("/api/pta/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contestId: ptaId.trim(), cookie: cookie.trim() }),
+        body: JSON.stringify({
+          contestId: ptaId.trim(),
+          cookie: toPtaCookieHeader(cookie),
+        }),
       });
 
       if (!res.ok) {
@@ -85,6 +93,9 @@ export default function CreateCompetitionPage() {
       setStartTime(data.startAt ? data.startAt.replace("T", " ") : "");
       setEndTime(data.endAt ? data.endAt.replace("T", " ") : "");
       setDurationMinutes(data.durationMinutes || 180);
+      setParticipants(
+        Array.isArray(data.participants) ? data.participants : []
+      );
       setFetched(true);
     } catch {
       setError("网络错误，请稍后重试");
@@ -104,6 +115,18 @@ export default function CreateCompetitionPage() {
 
   const updateTeam = (id: number, field: "name" | "members", value: string) => {
     setTeams(teams.map((t) => (t.id === id ? { ...t, [field]: value } : t)));
+  };
+
+  const handleDownloadRosterTemplate = () => {
+    if (participants.length === 0) return;
+    const names = participants.map((p) =>
+      p.studentNumber ? `${p.studentNumber} ${p.name}` : p.name
+    );
+    downloadTeamsExcel(
+      splitIntoTeams(names),
+      `${compName.trim() || "PTA用户组"}-导入模板`,
+      buildMemberSheet(participants)
+    );
   };
 
   const handleExcelImport = (imported: ExcelTeamData[]) => {
@@ -147,7 +170,7 @@ export default function CreateCompetitionPage() {
         start_time: startTime || undefined,
         end_time: endTime || undefined,
         duration_minutes: durationMinutes,
-        access_cookie: cookie.trim(),
+        access_cookie: toPtaCookieHeader(cookie),
         pta_contest_id: ptaId.trim(),
       });
       router.push("/");
@@ -254,31 +277,38 @@ export default function CreateCompetitionPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="cookie">Access Cookie</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="cookie"
-                      type={showCookie ? "text" : "password"}
-                      value={cookie}
-                      onChange={(e) => setCookie(e.target.value)}
-                      placeholder="从浏览器复制完整的 Cookie 字符串"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowCookie((v) => !v)}
-                    >
-                      {showCookie ? "隐藏" : "显示"}
-                    </Button>
-                  </div>
+                  <Label htmlFor="cookie">PTA Cookie</Label>
+                  <PtaCookieField
+                    id="cookie"
+                    value={cookie}
+                    onChange={setCookie}
+                    disabled={fetching}
+                  />
                 </div>
                 <Button onClick={handleFetch} disabled={fetching}>
                   {fetching ? "获取中..." : "获取比赛名称"}
                 </Button>
                 {fetched && (
-                  <div className="text-sm text-green-600 dark:text-green-400 font-medium">
-                    比赛名称: {compName}
+                  <div className="space-y-2">
+                    <div className="text-sm text-green-600 dark:text-green-400 font-medium">
+                      比赛名称: {compName}
+                    </div>
+                    {participants.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className="text-sm text-muted-foreground">
+                          已获取 {participants.length} 名参赛人员
+                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleDownloadRosterTemplate}
+                        >
+                          <Download />
+                          下载导入模板
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -298,9 +328,25 @@ export default function CreateCompetitionPage() {
           <TabsContent value="teams" className="space-y-4">
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <CardTitle>队伍管理</CardTitle>
-                  <ExcelImport onImport={handleExcelImport} />
+                  <div className="flex items-center gap-1">
+                    <ExcelImport onImport={handleExcelImport} />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleDownloadRosterTemplate}
+                      disabled={participants.length === 0}
+                      title={
+                        participants.length === 0
+                          ? "请先在「PTA 信息」步骤拉取用户组名单"
+                          : undefined
+                      }
+                    >
+                      按名单生成模板
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">

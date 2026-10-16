@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { parseTeamsFromExcel, downloadTeamTemplate, type ExcelTeamData } from "@/lib/excel-utils";
+import { parseTeamsFromExcel, type ExcelTeamData } from "@/lib/excel-utils";
 
 interface ExcelImportProps {
   onImport: (teams: ExcelTeamData[]) => void;
@@ -40,13 +40,6 @@ export function ExcelImport({ onImport }: ExcelImportProps) {
         onClick={() => inputRef.current?.click()}
       >
         导入 Excel
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={downloadTeamTemplate}
-      >
-        下载模板
       </Button>
     </div>
   );
