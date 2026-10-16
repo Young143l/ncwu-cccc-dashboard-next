@@ -232,12 +232,12 @@ function FirstBloodPanel({ firstBlood }: { firstBlood: FirstBlood[] }) {
   const pageItems = firstBlood.slice(startIdx, startIdx + FIRST_BLOOD_PAGE_SIZE);
 
   return (
-    <div className="flex-1 overflow-hidden p-4 flex flex-col">
+    <div className="p-4 flex flex-col md:flex-1 md:overflow-hidden">
       <h2 className="text-lg font-bold text-yellow-400 mb-3 flex items-center gap-2 shrink-0">
         <span className="text-2xl">&#9876;</span>
         一血榜
       </h2>
-      <div className="space-y-2 flex-1 overflow-hidden">
+      <div className="space-y-2 md:flex-1 md:overflow-hidden">
         {pageItems.length === 0 && (
           <p className="text-gray-500 text-sm">暂无数据</p>
         )}
@@ -295,7 +295,7 @@ function PassRatePanel({
   ];
 
   return (
-    <div className="p-4 border-t border-white/10 overflow-y-auto min-h-0">
+    <div className="p-4 border-t border-white/10 md:overflow-y-auto md:min-h-0">
       <h2 className="text-sm font-bold text-blue-300 mb-2">通过率</h2>
       <div className="space-y-1.5">
         {groups.map((group) => (
@@ -338,14 +338,14 @@ function TeamRankRow({ team, rank }: { team: Team; rank: number }) {
 
   return (
     <div
-      className={`flex items-center px-6 py-3 border-b border-white/5 transition-colors duration-500 ${
+      className={`flex items-center px-3 md:px-6 py-3 border-b border-white/5 transition-colors duration-500 ${
         isTop3 ? "bg-white/5" : ""
       } ${flash ? "bg-green-500/20" : ""}`}
     >
-      <div className="w-16 text-center">
+      <div className="w-9 md:w-16 text-center">
         {isTop3 ? (
           <span
-            className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-lg font-bold ${
+            className={`inline-flex items-center justify-center w-6 h-6 md:w-8 md:h-8 rounded-full text-sm md:text-lg font-bold ${
               rank === 1
                 ? "bg-yellow-500 text-black"
                 : rank === 2
@@ -356,30 +356,30 @@ function TeamRankRow({ team, rank }: { team: Team; rank: number }) {
             {rank}
           </span>
         ) : (
-          <span className="text-gray-400 text-lg font-mono">{rank}</span>
+          <span className="text-gray-400 text-base md:text-lg font-mono">{rank}</span>
         )}
       </div>
-      <div className="flex-1 text-center text-xl font-medium">
+      <div className="flex-1 text-center text-sm md:text-xl font-medium">
         {team.name}
       </div>
-      <div className="w-20 text-center text-xl tabular-nums">
+      <div className="w-11 md:w-20 text-center text-xs md:text-xl tabular-nums">
         {team.basicTotal}
       </div>
       <div
-        className={`w-20 text-center text-xl tabular-nums ${
+        className={`w-11 md:w-20 text-center text-xs md:text-xl tabular-nums ${
           !team.advancedUnlocked ? "text-gray-600" : ""
         }`}
       >
         {team.advancedTotal}
       </div>
       <div
-        className={`w-20 text-center text-xl tabular-nums ${
+        className={`w-11 md:w-20 text-center text-xs md:text-xl tabular-nums ${
           !team.topUnlocked ? "text-gray-600" : ""
         }`}
       >
         {team.topTotal}
       </div>
-      <div className="w-24 text-center text-3xl font-bold text-yellow-400 tabular-nums">
+      <div className="w-14 md:w-24 text-center text-base md:text-3xl font-bold text-yellow-400 tabular-nums">
         {team.totalScore}
       </div>
     </div>
@@ -404,6 +404,16 @@ function ProjectorContent({
   const listRef = useRef<HTMLDivElement>(null);
   const scrollPauseRef = useRef(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  // 窄屏不再自动滚动（页面本身可滚动，手滑更好用）
+  const [isNarrow, setIsNarrow] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsNarrow(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -421,8 +431,9 @@ function ProjectorContent({
     return () => clearTimeout(timer);
   }, [lastUpdated]);
 
-  // Auto-scroll
+  // Auto-scroll（窄屏交给页面滚动）
   useEffect(() => {
+    if (isNarrow) return;
     const el = listRef.current;
     if (!el) return;
     const scrollInterval = setInterval(() => {
@@ -434,7 +445,7 @@ function ProjectorContent({
       }
     }, SCROLL_INTERVAL_MS);
     return () => clearInterval(scrollInterval);
-  }, []);
+  }, [isNarrow]);
 
   const progressPercent =
     countdown.phase === "running" && countdown.totalMs > 0
@@ -445,22 +456,24 @@ function ProjectorContent({
 
   return (
     <div
-      className="h-screen flex flex-col overflow-hidden"
+      className="min-h-screen md:h-screen flex flex-col md:overflow-hidden"
       style={{
         background: "linear-gradient(135deg, #0a1628 0%, #1a2a4a 100%)",
         color: "#ffffff",
       }}
     >
       {/* Header */}
-      <header className="flex items-center justify-between px-8 py-4 border-b border-white/10">
-        <h1 className="text-2xl font-bold tracking-wide">{compName}</h1>
-        <div className="flex flex-col items-center gap-1">
+      <header className="flex flex-wrap items-center justify-between gap-y-2 px-4 py-3 md:px-8 md:py-4 border-b border-white/10">
+        <h1 className="text-lg md:text-2xl font-bold tracking-wide truncate max-w-[60%] md:max-w-none">
+          {compName}
+        </h1>
+        <div className="order-3 w-full md:order-none md:w-auto flex flex-col items-center gap-1">
           {countdown.phase === "unknown" ? (
             <span className="text-lg text-gray-500">时间未设置</span>
           ) : (
             <>
               <span
-                className={`text-3xl font-bold font-mono ${
+                className={`text-2xl md:text-3xl font-bold font-mono ${
                   countdown.phase === "finished"
                     ? "text-red-400"
                     : countdown.phase === "upcoming"
@@ -476,7 +489,7 @@ function ProjectorContent({
                   ? `距离开始 ${formatCountdown(countdown.remainingMs)}`
                   : formatCountdown(countdown.remainingMs)}
               </span>
-              <div className="w-64 h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div className="w-full max-w-64 md:w-64 h-1.5 bg-white/10 rounded-full overflow-hidden">
                 <div
                   className={`h-full transition-all duration-1000 ${
                     countdown.phase === "upcoming" ? "bg-green-400" : "bg-blue-400"
@@ -488,10 +501,10 @@ function ProjectorContent({
           )}
         </div>
         <div className="flex flex-col items-end gap-1">
-          <span className="text-xl text-blue-300 font-mono">
+          <span className="text-base md:text-xl text-blue-300 font-mono">
             {currentTime.toLocaleTimeString("zh-CN", { hour12: false })}
           </span>
-          <span className="text-sm text-gray-500">
+          <span className="text-xs md:text-sm text-gray-500">
             刷新:{" "}
             {state.lastUpdatedTime
               ? new Date(state.lastUpdatedTime).toLocaleTimeString("zh-CN", {
@@ -503,29 +516,29 @@ function ProjectorContent({
       </header>
 
       {/* Main content */}
-      <div className="flex-1 flex gap-0 overflow-hidden">
-        {/* Left sidebar: First Blood + Pass Rate */}
-        <div className="w-[360px] shrink-0 border-r border-white/10 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row gap-0 md:overflow-hidden">
+        {/* Left sidebar: First Blood + Pass Rate（窄屏移到排名下方） */}
+        <div className="order-2 md:order-1 w-full md:w-[360px] md:shrink-0 border-t md:border-t-0 md:border-r border-white/10 flex flex-col md:overflow-hidden">
           <FirstBloodPanel firstBlood={firstBlood} />
           <PassRatePanel passRates={passRates} />
         </div>
 
         {/* Main ranking */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="order-1 md:order-2 flex-1 flex flex-col md:overflow-hidden">
           {/* Column headers */}
-          <div className="flex items-center px-6 py-3 text-base text-gray-400 border-b border-white/10 shrink-0">
-            <span className="w-16 text-center">排名</span>
+          <div className="flex items-center px-3 md:px-6 py-2 md:py-3 text-xs md:text-base text-gray-400 border-b border-white/10 shrink-0">
+            <span className="w-9 md:w-16 text-center">排名</span>
             <span className="flex-1 text-center">队伍</span>
-            <span className="w-20 text-center">基础分</span>
-            <span className="w-20 text-center">进阶分</span>
-            <span className="w-20 text-center">登顶分</span>
-            <span className="w-24 text-center text-yellow-400 font-bold">
+            <span className="w-11 md:w-20 text-center">基础分</span>
+            <span className="w-11 md:w-20 text-center">进阶分</span>
+            <span className="w-11 md:w-20 text-center">登顶分</span>
+            <span className="w-14 md:w-24 text-center text-yellow-400 font-bold">
               总分
             </span>
           </div>
 
           {/* Scrollable list */}
-          <div ref={listRef} className="flex-1 overflow-hidden">
+          <div ref={listRef} className="flex-1 md:overflow-hidden">
             {state.teams.map((team, idx) => (
               <TeamRankRow key={team.id} team={team} rank={idx + 1} />
             ))}
@@ -534,7 +547,7 @@ function ProjectorContent({
       </div>
 
       {/* Footer */}
-      <footer className="border-t border-white/10 py-2 px-8 text-center text-sm text-gray-500">
+      <footer className="border-t border-white/10 py-2 px-4 md:px-8 text-center text-xs md:text-sm text-gray-500">
         华北水利水电大学信息工程学院
       </footer>
     </div>

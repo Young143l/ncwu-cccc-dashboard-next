@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback, useState, type ReactNode } from "react"
 import { ScoreProvider, useScore } from "@/context/score-context";
 import { getCompetition } from "@/services/api";
 import { convertDetailToTeams, type CompetitionApiData } from "@/lib/server-utils";
+import { useViewportScale } from "@/hooks/use-viewport-scale";
 import type { Team } from "@/types";
 import { GpltTeamRank } from "@/components/gplt/gplt-team-rank";
 import { GpltIndividualRank } from "@/components/gplt/gplt-individual-rank";
@@ -49,6 +50,8 @@ function OfficialLiveContent({
   compId: number;
 }) {
   const [tab, setTab] = useState<"team" | "individual">("team");
+  // 官方版式是 1200px 固定宽度，窄屏整体等比缩放（等价于手动缩放）
+  const scale = useViewportScale();
 
   useEffect(() => {
     const root = document.getElementById("root");
@@ -65,7 +68,10 @@ function OfficialLiveContent({
   }, []);
 
   return (
-    <div className="mainContainer_zpZoi">
+    <div
+      className="mainContainer_zpZoi"
+      style={{ zoom: scale } as React.CSSProperties}
+    >
       <OfficialPollingUpdater competitionId={compId} />
       <div className="container_KGMv8">
         <div className="wrapper_Gjsvi">

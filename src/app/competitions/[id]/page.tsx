@@ -15,6 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ExcelImport } from "@/components/ui/excel-import";
+import { downloadTeamsExcel } from "@/lib/excel-utils";
 import { MoreVertical, RefreshCw, Trophy, X, Pencil, Loader2, ExternalLink, Download } from "lucide-react";
 import {
   getCompetition,
@@ -220,6 +221,17 @@ export default function CompetitionDetailPage() {
     const rows = all.map((item, idx) => `${idx + 1},${item.name},${item.team},${item.basic},${item.advanced},${item.top},${item.total}`);
     const csv = header + "\n" + rows.join("\n");
     downloadCsv(csv, `${detail.name}-个人排名`);
+  };
+
+  const handleExportTeams = () => {
+    if (!detail) return;
+    downloadTeamsExcel(
+      detail.teams.map((team) => ({
+        name: team.name,
+        members: team.members.map((m) => m.name),
+      })),
+      `${detail.name}-队伍名单`
+    );
   };
 
   function downloadCsv(csv: string, filename: string) {
@@ -458,28 +470,38 @@ export default function CompetitionDetailPage() {
         {/* 队伍管理 */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <CardTitle className="text-base">队伍管理</CardTitle>
-              <ExcelImport
-                onImport={(imported) => {
-                  const updated = detail.teams.map((t, i) => {
-                    const match = imported[i];
-                    if (match) {
-                      return { ...t, name: match.name, members: match.members.map((name) => ({ id: 0, name, scores: [] })) };
+              <div className="flex items-center gap-1">
+                <ExcelImport
+                  onImport={(imported) => {
+                    const updated = detail.teams.map((t, i) => {
+                      const match = imported[i];
+                      if (match) {
+                        return { ...t, name: match.name, members: match.members.map((name) => ({ id: 0, name, scores: [] })) };
+                      }
+                      return t;
+                    });
+                    const remaining = imported.slice(detail.teams.length);
+                    for (const r of remaining) {
+                      updated.push({ id: 0, name: r.name, members: r.members.map((name) => ({ id: 0, name, scores: [] })) });
                     }
-                    return t;
-                  });
-                  const remaining = imported.slice(detail.teams.length);
-                  for (const r of remaining) {
-                    updated.push({ id: 0, name: r.name, members: r.members.map((name) => ({ id: 0, name, scores: [] })) });
-                  }
-                  fetch(`/api/competitions/${id}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ teams: updated }),
-                  }).then(() => { load(); setRefreshKey((v) => v + 1); });
-                }}
-              />
+                    fetch(`/api/competitions/${id}`, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ teams: updated }),
+                    }).then(() => { load(); setRefreshKey((v) => v + 1); });
+                  }}
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleExportTeams}
+                  disabled={detail.teams.length === 0}
+                >
+                  导出名单
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>

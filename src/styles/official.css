@@ -23,6 +23,8 @@ p { font-size: 16px; line-height: 24px; margin: 1em 0; }
 img { vertical-align: unset; }
 
 /* ---- 最外层容器 ---- */
+/* 固定 1200px 宽是官方原样；窄屏下由 useViewportScale + zoom 整体等比缩放，
+   因此这里不要再加响应式覆盖，以免偏离官方视觉。 */
 .mainContainer_zpZoi {
   min-width: 1200px;
 }
