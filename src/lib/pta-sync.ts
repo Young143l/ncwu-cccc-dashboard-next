@@ -43,6 +43,8 @@ export interface PtaSyncState {
   ambiguousPlayers: string[];
   /** 名单中没有学号、永远无法参与匹配的人数 */
   rosterWithoutStudentNumber: number | null;
+  /** 本次同步因“不在 PTA 榜单”而被清零的人数 */
+  clearedUnmatched: number | null;
 }
 
 type SyncRecord = Omit<PtaSyncState, "running">;
@@ -65,7 +67,8 @@ function recordSuccess(
   matchedCount: number,
   unmatchedPlayers: string[],
   ambiguousPlayers: string[],
-  rosterWithoutStudentNumber: number
+  rosterWithoutStudentNumber: number,
+  clearedUnmatched: number
 ): void {
   syncStates.set(competitionId, {
     lastAttemptAt: attemptAt,
@@ -76,6 +79,7 @@ function recordSuccess(
     unmatchedPlayers,
     ambiguousPlayers,
     rosterWithoutStudentNumber,
+    clearedUnmatched,
   });
 }
 
@@ -94,6 +98,7 @@ function recordFailure(
     unmatchedPlayers: prev?.unmatchedPlayers ?? [],
     ambiguousPlayers: prev?.ambiguousPlayers ?? [],
     rosterWithoutStudentNumber: prev?.rosterWithoutStudentNumber ?? null,
+    clearedUnmatched: prev?.clearedUnmatched ?? null,
   });
 }
 
@@ -161,6 +166,7 @@ export async function syncOnce(competitionId: number): Promise<number> {
     let matchedCount = 0;
     const unmatchedPlayers: string[] = [];
     const ambiguousPlayers: string[] = [];
+    const matchedIds = new Set<number>();
 
     for (const player of players) {
       // 严格按学号匹配（不参考姓名，避免「王梦」吃掉「王梦帆」这类串号）
@@ -181,6 +187,7 @@ export async function syncOnce(competitionId: number): Promise<number> {
       }
       const memberId = result.memberId;
       matchedCount++;
+      matchedIds.add(memberId);
 
       for (const label of PROBLEM_LABELS) {
         // 以 PTA 为准逐题覆盖：PTA 没返回的题就是 0 分。
@@ -202,6 +209,24 @@ export async function syncOnce(competitionId: number): Promise<number> {
       }
     }
 
+    // 不在 PTA 榜单上的人（没参加）分数应当为 0。
+    // 否则旧版本模糊匹配写错的分、或上一场比赛遗留的分，会一直挂在他名下。
+    // 只在榜单完整拉取时做，避免分页不全时误清。
+    let clearedUnmatched = 0;
+    if (players.length === rankings.total) {
+      for (const member of roster) {
+        if (matchedIds.has(member.id)) continue;
+        const hasPositive = db.exec(
+          `SELECT 1 FROM scores WHERE member_id = ${member.id} AND score > 0 LIMIT 1`
+        ).length > 0;
+        if (!hasPositive) continue;
+        db.run(
+          `UPDATE scores SET score = 0, accept_time = NULL, updated_at = datetime('now', 'localtime') WHERE member_id = ${member.id}`
+        );
+        clearedUnmatched++;
+      }
+    }
+
     saveDb();
     recordSuccess(
       competitionId,
@@ -209,7 +234,8 @@ export async function syncOnce(competitionId: number): Promise<number> {
       matchedCount,
       unmatchedPlayers,
       ambiguousPlayers,
-      rosterWithoutStudentNumber
+      rosterWithoutStudentNumber,
+      clearedUnmatched
     );
     return matchedCount;
   } catch (err) {
@@ -258,6 +284,7 @@ export function getPtaSyncStatus(competitionId: number): PtaSyncState {
     unmatchedPlayers: record?.unmatchedPlayers ?? [],
     ambiguousPlayers: record?.ambiguousPlayers ?? [],
     rosterWithoutStudentNumber: record?.rosterWithoutStudentNumber ?? null,
+    clearedUnmatched: record?.clearedUnmatched ?? null,
   };
 }
 

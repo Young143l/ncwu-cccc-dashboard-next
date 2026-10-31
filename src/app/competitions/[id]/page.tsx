@@ -411,6 +411,11 @@ export default function CompetitionDetailPage() {
                   名单中 {syncStatus!.rosterWithoutStudentNumber} 人没有学号，无法匹配
                 </span>
               )}
+              {(syncStatus?.clearedUnmatched ?? 0) > 0 && (
+                <span className="text-muted-foreground">
+                  {syncStatus!.clearedUnmatched} 人不在 PTA 榜单，分数已置 0
+                </span>
+              )}
             </div>
             {syncMessage && (
               <p
