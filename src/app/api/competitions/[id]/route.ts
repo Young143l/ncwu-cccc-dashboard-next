@@ -179,6 +179,51 @@ export async function PUT(
   const ptaConfigChanged =
     typeof access_cookie === "string" || typeof pta_contest_id === "string";
 
+  // 换了 PTA 比赛、且调用方没手动指定时间时，按 PTA 的比赛窗口更新时间，
+  // 否则会沿用上一场比赛的起止时间，导致状态和倒计时都不对。
+  if (
+    ptaConfigChanged &&
+    typeof start_time !== "string" &&
+    typeof end_time !== "string"
+  ) {
+    const cfgRows = db.exec(
+      `SELECT access_cookie, pta_contest_id FROM competitions WHERE id = ${compId}`
+    );
+    const cfg =
+      cfgRows.length > 0 && cfgRows[0].values.length > 0
+        ? cfgRows[0].values[0]
+        : null;
+    const cookie = ((cfg?.[0] as string) || "").trim();
+    const ptaContestId = ((cfg?.[1] as string) || "").trim();
+    if (cookie && ptaContestId) {
+      try {
+        const res = await fetch(
+          `https://pintia.cn/api/problem-sets/${ptaContestId}/exams`,
+          { headers: { Accept: "application/json", Cookie: cookie } }
+        );
+        if (res.ok) {
+          const exam = await res.json();
+          const startAt: string | null = exam.problemSet?.startAt ?? null;
+          const endAt: string | null = exam.problemSet?.endAt ?? null;
+          if (startAt && endAt) {
+            const duration = Math.round(
+              (new Date(endAt).getTime() - new Date(startAt).getTime()) / 60000
+            );
+            db.run(
+              `UPDATE competitions SET start_time = ${esc(
+                startAt.replace("T", " ")
+              )}, end_time = ${esc(
+                endAt.replace("T", " ")
+              )}, duration_minutes = ${duration} WHERE id = ${compId}`
+            );
+          }
+        }
+      } catch {
+        // 拿不到 PTA 信息就保留原有时间，不阻断保存
+      }
+    }
+  }
+
   if (teams) {
     const existingRows = db.exec(`SELECT id FROM teams WHERE competition_id = ${compId}`);
     const existingTeamIds = existingRows.length > 0

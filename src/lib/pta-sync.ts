@@ -182,17 +182,21 @@ export async function syncOnce(competitionId: number): Promise<number> {
       const memberId = result.memberId;
       matchedCount++;
 
-      for (const [label, score] of Object.entries(player.score)) {
+      for (const label of PROBLEM_LABELS) {
+        // 以 PTA 为准逐题覆盖：PTA 没返回的题就是 0 分。
+        // 否则复用比赛记录、换了 PTA 比赛后，上一场的分数会残留在这个人名下。
+        const score = player.score[label] ?? 0;
         const maxScore = labelToMaxScore[label] || 0;
         const acceptTime = player.acceptTime[label] || 0;
-        const acceptTimeSql = acceptTime > 0 ? String(acceptTime) : "NULL";
+        const acceptTimeSql =
+          score > 0 && acceptTime > 0 ? String(acceptTime) : "NULL";
         db.run(
           `INSERT INTO scores (member_id, problem_label, score, max_score, accept_time, updated_at)
            VALUES (${memberId}, ${esc(label)}, ${Math.round(score) || 0}, ${maxScore}, ${acceptTimeSql}, datetime('now', 'localtime'))
            ON CONFLICT(member_id, problem_label) DO UPDATE SET
              score = excluded.score,
              max_score = excluded.max_score,
-             accept_time = COALESCE(excluded.accept_time, scores.accept_time),
+             accept_time = excluded.accept_time,
              updated_at = excluded.updated_at`
         );
       }

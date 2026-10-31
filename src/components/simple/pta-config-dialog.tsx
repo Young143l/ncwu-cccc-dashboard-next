@@ -55,6 +55,8 @@ export function PtaConfigDialog({
   );
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  // 时间是否被手动改过：没改时交给服务端按 PTA 的比赛窗口填，避免换比赛后时间停留旧的
+  const [timeDirty, setTimeDirty] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -65,6 +67,7 @@ export function PtaConfigDialog({
     setStartTime(toDatetimeLocalValue(competition.start_time));
     setEndTime(toDatetimeLocalValue(competition.end_time));
     setDuration(String(competition.duration_minutes ?? 180));
+    setTimeDirty(false);
     setError("");
   }, [open, competition]);
 
@@ -85,9 +88,14 @@ export function PtaConfigDialog({
       await updateCompetition(competition.id, {
         name: name.trim(),
         pta_contest_id: ptaId.trim(),
-        start_time: startTime || undefined,
-        end_time: endTime,
-        duration_minutes: durationMinutes,
+        // 只有手动改过时间才回写；否则服务端会按 PTA 的比赛窗口更新
+        ...(timeDirty
+          ? {
+              start_time: startTime || undefined,
+              end_time: endTime,
+              duration_minutes: durationMinutes,
+            }
+          : {}),
         ...(clearCookie
           ? { access_cookie: "" }
           : cookie.trim()
@@ -169,7 +177,10 @@ export function PtaConfigDialog({
                 id="comp-start"
                 type="datetime-local"
                 value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
+                onChange={(e) => {
+                  setStartTime(e.target.value);
+                  setTimeDirty(true);
+                }}
                 disabled={saving}
               />
             </div>
@@ -179,11 +190,16 @@ export function PtaConfigDialog({
                 id="comp-end"
                 type="datetime-local"
                 value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
+                onChange={(e) => {
+                  setEndTime(e.target.value);
+                  setTimeDirty(true);
+                }}
                 disabled={saving}
               />
               <p className="text-xs text-muted-foreground">
-                留空则按「开始时间 + 时长」计算，比赛状态与倒计时以结束时间为准
+                {timeDirty
+                  ? "已手动修改，保存后以你填写的为准"
+                  : "未手动修改时，保存会按 PTA 的比赛时间自动更新（换比赛 ID 后建议保持不改）"}
               </p>
             </div>
             <div className="space-y-2">
@@ -193,7 +209,10 @@ export function PtaConfigDialog({
                 type="number"
                 min={1}
                 value={duration}
-                onChange={(e) => setDuration(e.target.value)}
+                onChange={(e) => {
+                  setDuration(e.target.value);
+                  setTimeDirty(true);
+                }}
                 disabled={saving}
               />
             </div>
