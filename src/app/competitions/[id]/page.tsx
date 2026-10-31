@@ -287,6 +287,15 @@ export default function CompetitionDetailPage() {
       ? Math.round((endMs - startMs) / 60000)
       : detail.duration_minutes;
 
+  // 排查用的三类名单：未匹配 / 学号重复 / 名单缺学号
+  const unmatchedList = syncStatus?.unmatchedPlayers ?? [];
+  const ambiguousList = syncStatus?.ambiguousPlayers ?? [];
+  const noStudentNumberList = detail.teams.flatMap((t) =>
+    t.members
+      .filter((m) => !splitStudentName(m.name).studentNumber)
+      .map((m) => `${m.name}（${t.name}）`)
+  );
+
   return (
     <div className="min-h-screen bg-background">
       <PageHeader
@@ -417,6 +426,52 @@ export default function CompetitionDetailPage() {
                 </span>
               )}
             </div>
+            {(unmatchedList.length > 0 ||
+              ambiguousList.length > 0 ||
+              noStudentNumberList.length > 0) && (
+              <details className="mt-3 rounded-md border bg-muted/30 px-3 py-2">
+                <summary className="cursor-pointer select-none text-sm text-muted-foreground">
+                  匹配明细排查（点开看具体名单）
+                </summary>
+                <div className="mt-3 space-y-3 text-sm">
+                  {unmatchedList.length > 0 && (
+                    <div>
+                      <p className="font-medium">
+                        未匹配 · PTA 有成绩但名单里没这个学号
+                        <span className="ml-1 text-muted-foreground">
+                          （{unmatchedList.length}）
+                        </span>
+                      </p>
+                      <p className="mt-1 text-xs leading-6 break-all text-muted-foreground">
+                        {unmatchedList.join("、")}
+                      </p>
+                    </div>
+                  )}
+                  {ambiguousList.length > 0 && (
+                    <div>
+                      <p className="font-medium text-amber-600 dark:text-amber-500">
+                        学号重复 · 名单里同一个学号出现多次，不做猜测
+                        <span className="ml-1">（{ambiguousList.length}）</span>
+                      </p>
+                      <p className="mt-1 text-xs leading-6 break-all text-muted-foreground">
+                        {ambiguousList.join("、")}
+                      </p>
+                    </div>
+                  )}
+                  {noStudentNumberList.length > 0 && (
+                    <div>
+                      <p className="font-medium text-amber-600 dark:text-amber-500">
+                        名单缺学号 · 这些人不会参与匹配
+                        <span className="ml-1">（{noStudentNumberList.length}）</span>
+                      </p>
+                      <p className="mt-1 text-xs leading-6 break-all text-muted-foreground">
+                        {noStudentNumberList.join("、")}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </details>
+            )}
             {syncMessage && (
               <p
                 className={

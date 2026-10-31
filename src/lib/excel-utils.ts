@@ -34,19 +34,27 @@ export function buildTeamsWorkbook(
   teams: ExcelTeamData[],
   extraSheet?: ExtraSheet
 ): XLSX.WorkBook {
+  // 列数取 max(模板默认 10, 实际最大队伍人数)：
+  // 固定 10 列会把超过 10 人的队伍导出后再导入时静默丢人。
+  const maxMembers = teams.reduce((max, t) => Math.max(max, t.members.length), 0);
+  const memberCols = Math.max(TEAM_COLUMNS, maxMembers);
+
   const header = [
     "队伍名",
-    ...Array.from({ length: TEAM_COLUMNS }, (_, i) => `队员${i + 1}`),
+    ...Array.from({ length: memberCols }, (_, i) => `队员${i + 1}`),
   ];
   const rows = teams.map((team) => [
     team.name,
-    ...Array.from({ length: TEAM_COLUMNS }, (_, i) => team.members[i] ?? ""),
+    ...Array.from({ length: memberCols }, (_, i) => team.members[i] ?? ""),
   ]);
 
   const wb = XLSX.utils.book_new();
 
   const teamSheet = XLSX.utils.aoa_to_sheet([header, ...rows]);
-  teamSheet["!cols"] = TEAM_SHEET_COLS;
+  teamSheet["!cols"] = [
+    TEAM_SHEET_COLS[0],
+    ...Array.from({ length: memberCols }, () => ({ wch: 16 })),
+  ];
   XLSX.utils.book_append_sheet(wb, teamSheet, SHEET_NAME);
 
   if (extraSheet) {
