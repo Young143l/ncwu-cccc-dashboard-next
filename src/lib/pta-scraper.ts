@@ -38,6 +38,7 @@ interface PtaRankingResponse {
 
 export interface PtaPlayerScore {
   name: string;
+  studentNumber: string | null;
   score: Record<string, number>;
   acceptTime: Record<string, number>;
 }
@@ -156,7 +157,7 @@ export function transformPtaData(
       }
     }
 
-    return { name, score, acceptTime };
+    return { name, studentNumber: studentUser?.studentNumber?.trim() || null, score, acceptTime };
   });
 }
 

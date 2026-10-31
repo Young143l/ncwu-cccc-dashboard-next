@@ -54,6 +54,8 @@ export interface PtaSyncStatus {
   matchedCount: number | null;
   unmatchedCount: number | null;
   unmatchedPlayers: string[];
+  ambiguousPlayers: string[];
+  rosterWithoutStudentNumber: number | null;
 }
 
 export async function getCompetitions(): Promise<CompetitionSummary[]> {

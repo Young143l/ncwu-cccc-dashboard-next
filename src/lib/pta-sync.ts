@@ -1,5 +1,6 @@
 import { getDb, saveDb, esc } from "./db";
 import { fetchPtaAllRankings, fetchPtaProblemTypes, transformPtaData } from "./pta-scraper";
+import { matchMember, parseMemberName } from "./member-name";
 import { ALL_MAX_SCORES, PROBLEM_LABELS } from "@/types";
 
 // 同 db.ts：instrumentation 与路由是两份模块实例，定时器/状态必须宿在 globalThis 上共享，
@@ -33,11 +34,15 @@ export interface PtaSyncState {
   lastSuccessAt: string | null;
   /** 最近一次失败原因，成功后清空 */
   lastError: string | null;
-  /** 最近一次成功同步匹配到的选手数 */
+  /** 最近一次成功同步匹配到的选手数（按学号） */
   matchedCount: number | null;
   /** 最近一次成功同步未匹配到的选手数 */
   unmatchedCount: number | null;
   unmatchedPlayers: string[];
+  /** 名单里同一学号重复、无法判断归属的选手 */
+  ambiguousPlayers: string[];
+  /** 名单中没有学号、永远无法参与匹配的人数 */
+  rosterWithoutStudentNumber: number | null;
 }
 
 type SyncRecord = Omit<PtaSyncState, "running">;
@@ -58,7 +63,9 @@ function recordSuccess(
   competitionId: number,
   attemptAt: string,
   matchedCount: number,
-  unmatchedPlayers: string[]
+  unmatchedPlayers: string[],
+  ambiguousPlayers: string[],
+  rosterWithoutStudentNumber: number
 ): void {
   syncStates.set(competitionId, {
     lastAttemptAt: attemptAt,
@@ -67,6 +74,8 @@ function recordSuccess(
     matchedCount,
     unmatchedCount: unmatchedPlayers.length,
     unmatchedPlayers,
+    ambiguousPlayers,
+    rosterWithoutStudentNumber,
   });
 }
 
@@ -83,6 +92,8 @@ function recordFailure(
     matchedCount: prev?.matchedCount ?? null,
     unmatchedCount: prev?.unmatchedCount ?? null,
     unmatchedPlayers: prev?.unmatchedPlayers ?? [],
+    ambiguousPlayers: prev?.ambiguousPlayers ?? [],
+    rosterWithoutStudentNumber: prev?.rosterWithoutStudentNumber ?? null,
   });
 }
 
@@ -130,12 +141,16 @@ export async function syncOnce(competitionId: number): Promise<number> {
       WHERE t.competition_id = ${competitionId}
     `);
 
-    const nameToId = new Map<string, number>();
-    if (memberRows.length > 0) {
-      for (const row of memberRows[0].values) {
-        nameToId.set(row[1] as string, row[0] as number);
-      }
-    }
+    const roster = memberRows.length > 0
+      ? memberRows[0].values.map((row) => ({
+          id: row[0] as number,
+          name: String(row[1] ?? ""),
+        }))
+      : [];
+    // 名单里没有学号的成员永远无法按学号匹配，单独统计便于后台提醒
+    const rosterWithoutStudentNumber = roster.filter(
+      (m) => !parseMemberName(m.name).studentNumber
+    ).length;
 
     // 满分是固定规则，直接用常量表；不要依赖题目接口（拿不到题目时会导致 maxScore 全为 0）
     const labelToMaxScore: Record<string, number> = {};
@@ -145,23 +160,26 @@ export async function syncOnce(competitionId: number): Promise<number> {
 
     let matchedCount = 0;
     const unmatchedPlayers: string[] = [];
+    const ambiguousPlayers: string[] = [];
 
     for (const player of players) {
-      let memberId = nameToId.get(player.name);
-      if (!memberId) {
-        for (const [dbName, dbId] of nameToId) {
-          if (dbName.includes(player.name) || player.name.includes(dbName)) {
-            memberId = dbId;
-            break;
-          }
+      // 严格按学号匹配（不参考姓名，避免「王梦」吃掉「王梦帆」这类串号）
+      const result = matchMember(player, roster);
+      const display = player.studentNumber
+        ? `${player.studentNumber} ${player.name}`.trim()
+        : player.name;
+
+      if (!result.memberId) {
+        if (result.reason === "ambiguous") {
+          ambiguousPlayers.push(display);
+          continue;
         }
-      }
-      if (!memberId) {
         // 零提交的选手不在名单里很正常，不纳入“未匹配”统计，避免数字虚高
         const hasScore = Object.values(player.score).some((s) => s > 0);
-        if (hasScore) unmatchedPlayers.push(player.name);
+        if (hasScore) unmatchedPlayers.push(display);
         continue;
       }
+      const memberId = result.memberId;
       matchedCount++;
 
       for (const [label, score] of Object.entries(player.score)) {
@@ -181,7 +199,14 @@ export async function syncOnce(competitionId: number): Promise<number> {
     }
 
     saveDb();
-    recordSuccess(competitionId, attemptAt, matchedCount, unmatchedPlayers);
+    recordSuccess(
+      competitionId,
+      attemptAt,
+      matchedCount,
+      unmatchedPlayers,
+      ambiguousPlayers,
+      rosterWithoutStudentNumber
+    );
     return matchedCount;
   } catch (err) {
     const message = describeError(err);
@@ -227,6 +252,8 @@ export function getPtaSyncStatus(competitionId: number): PtaSyncState {
     matchedCount: record?.matchedCount ?? null,
     unmatchedCount: record?.unmatchedCount ?? null,
     unmatchedPlayers: record?.unmatchedPlayers ?? [],
+    ambiguousPlayers: record?.ambiguousPlayers ?? [],
+    rosterWithoutStudentNumber: record?.rosterWithoutStudentNumber ?? null,
   };
 }
 

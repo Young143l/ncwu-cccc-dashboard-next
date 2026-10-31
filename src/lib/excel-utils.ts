@@ -1,5 +1,7 @@
 import * as XLSX from "xlsx";
 
+import { parseMemberName } from "@/lib/member-name";
+
 export interface ExcelTeamData {
   name: string;
   members: string[];
@@ -80,16 +82,11 @@ export function buildMemberSheet(members: MemberInfo[]): ExtraSheet {
 }
 
 /**
- * 拆开形如「202531921 李炎波」的成员姓名。
+ * 拆开形如「202531921 李炎波」「202531921李炎波」的成员姓名。
  * 没有学号前缀时，整串当作姓名。
  */
 export function splitStudentName(full: string): MemberInfo {
-  const value = full.trim();
-  const matched = value.match(/^(\d{6,})\s+(.+)$/);
-  if (matched) {
-    return { studentNumber: matched[1], name: matched[2].trim() };
-  }
-  return { studentNumber: null, name: value };
+  return parseMemberName(full);
 }
 
 /**

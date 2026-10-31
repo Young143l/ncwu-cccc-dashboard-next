@@ -394,10 +394,21 @@ export default function CompetitionDetailPage() {
               )}
               {syncStatus?.lastSuccessAt && syncStatus.matchedCount !== null && (
                 <span className="text-muted-foreground">
-                  匹配 {syncStatus.matchedCount} 人
+                  按学号匹配 {syncStatus.matchedCount} 人
                   {syncStatus.unmatchedCount
-                    ? `，未匹配 ${syncStatus.unmatchedCount} 人（名单姓名不一致）`
+                    ? `，未匹配 ${syncStatus.unmatchedCount} 人`
                     : ""}
+                </span>
+              )}
+              {(syncStatus?.ambiguousPlayers?.length ?? 0) > 0 && (
+                <span className="text-amber-600 dark:text-amber-500">
+                  同号重复 {syncStatus!.ambiguousPlayers.length} 人（{syncStatus!.ambiguousPlayers.slice(0, 3).join("、")}
+                  {syncStatus!.ambiguousPlayers.length > 3 ? " 等" : ""}）
+                </span>
+              )}
+              {(syncStatus?.rosterWithoutStudentNumber ?? 0) > 0 && (
+                <span className="text-amber-600 dark:text-amber-500">
+                  名单中 {syncStatus!.rosterWithoutStudentNumber} 人没有学号，无法匹配
                 </span>
               )}
             </div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb, esc, saveDb } from "@/lib/db";
 import { PROBLEM_LABELS, ALL_MAX_SCORES } from "@/types";
+import { matchMember, parseMemberName } from "@/lib/member-name";
 
 export async function POST(
   req: NextRequest,
@@ -12,6 +13,7 @@ export async function POST(
 
   const players: Array<{
     name: string;
+    studentNumber?: string | null;
     score: Record<string, number>;
     acceptTime?: Record<string, number>;
   }> = await req.json();
@@ -29,12 +31,12 @@ export async function POST(
     WHERE t.competition_id = ${compId}
   `);
 
-  const nameToId = new Map<string, number>();
-  if (memberRows.length > 0) {
-    for (const row of memberRows[0].values) {
-      nameToId.set(row[1] as string, row[0] as number);
-    }
-  }
+  const roster = memberRows.length > 0
+    ? memberRows[0].values.map((row) => ({
+        id: row[0] as number,
+        name: String(row[1] ?? ""),
+      }))
+    : [];
 
   const labelToMaxScore: Record<string, number> = {};
   for (let i = 0; i < PROBLEM_LABELS.length; i++) {
@@ -45,19 +47,20 @@ export async function POST(
   const unmatchedPlayers: string[] = [];
 
   for (const player of players) {
-    let memberId = nameToId.get(player.name);
-    if (!memberId) {
-      for (const [dbName, dbId] of nameToId) {
-        if (dbName.includes(player.name) || player.name.includes(dbName)) {
-          memberId = dbId;
-          break;
-        }
-      }
-    }
-    if (!memberId) {
+    // 严格按学号匹配：优先用显式 studentNumber，其次从「学号姓名」里解析
+    const parsedName = parseMemberName(player.name);
+    const result = matchMember(
+      {
+        name: parsedName.name,
+        studentNumber: player.studentNumber ?? parsedName.studentNumber,
+      },
+      roster
+    );
+    if (!result.memberId) {
       unmatchedPlayers.push(player.name);
       continue;
     }
+    const memberId = result.memberId;
     matchedCount++;
 
     for (const [label, score] of Object.entries(player.score)) {
