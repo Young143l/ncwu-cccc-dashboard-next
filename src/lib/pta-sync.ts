@@ -1,6 +1,7 @@
 import { getDb, saveDb, esc } from "./db";
 import { fetchPtaAllRankings, fetchPtaProblemTypes, transformPtaData } from "./pta-scraper";
 import { matchMember, parseMemberName } from "./member-name";
+import { computeStatus } from "./competition-status";
 import { ALL_MAX_SCORES, PROBLEM_LABELS } from "@/types";
 
 // 同 db.ts：instrumentation 与路由是两份模块实例，定时器/状态必须宿在 globalThis 上共享，
@@ -112,7 +113,7 @@ export async function syncOnce(competitionId: number): Promise<number> {
     const db = await getDb();
 
     const compRows = db.exec(
-      `SELECT access_cookie, pta_contest_id FROM competitions WHERE id = ${competitionId}`
+      `SELECT access_cookie, pta_contest_id, start_time, end_time, duration_minutes, status FROM competitions WHERE id = ${competitionId}`
     );
     if (compRows.length === 0 || compRows[0].values.length === 0) {
       recordFailure(competitionId, attemptAt, "比赛不存在");
@@ -122,6 +123,21 @@ export async function syncOnce(competitionId: number): Promise<number> {
     const comp = compRows[0].values[0];
     const cookie = ((comp[0] as string) || "").trim();
     const ptaContestId = ((comp[1] as string) || "").trim();
+
+    // 比赛已经结束就别再定时拉了：每小时 60 次 × 9 页请求只会招来 PTA 限流。
+    // 这里只停定时器、不中断本次同步，手动点「立即同步」仍可赛后补一次数据。
+    const status = computeStatus(
+      comp[2] as string | null,
+      comp[3] as string | null,
+      comp[4] as number | null,
+      String(comp[5] ?? "")
+    );
+    if (status !== "active" && syncTimers.has(competitionId)) {
+      stopPtaSync(competitionId);
+      console.log(
+        `[pta-sync] 比赛 ${competitionId} 状态为 ${status}，已停止自动同步`
+      );
+    }
 
     if (!cookie || !ptaContestId) {
       recordFailure(competitionId, attemptAt, "未配置 PTA 比赛 ID 或 Cookie");

@@ -2,6 +2,40 @@ import { PROBLEM_LABELS } from "@/types";
 
 const PTA_API = "https://pintia.cn/api";
 const PAGE_SIZE = 50;
+/** 单次 PTA 请求超时：不设超时的话 PTA 挂住会让同步锁永远不释放 */
+const PTA_TIMEOUT_MS = 15_000;
+
+/**
+ * 统一的 PTA 请求入口：带超时、带 Accept/Cookie 头、错误信息可读。
+ */
+async function ptaFetch<T>(path: string, cookie: string): Promise<T> {
+  const timeout = AbortSignal.timeout(PTA_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(`${PTA_API}${path}`, {
+      headers: { Accept: "application/json", Cookie: cookie },
+      signal: timeout,
+      cache: "no-store",
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") {
+      throw new Error(`PTA 响应超时（${PTA_TIMEOUT_MS / 1000} 秒未返回）`);
+    }
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error(`PTA 请求被中断（超过 ${PTA_TIMEOUT_MS / 1000} 秒）`);
+    }
+    throw new Error(
+      `PTA 请求失败: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+  if (res.status === 401 || res.status === 403) {
+    throw new Error("PTA Cookie 已失效或无权限，请重新获取");
+  }
+  if (!res.ok) {
+    throw new Error(`PTA 接口返回 ${res.status}`);
+  }
+  return (await res.json()) as T;
+}
 
 interface PtaProblemLabel {
   id: string;
@@ -47,17 +81,10 @@ export async function fetchPtaProblemTypes(
   contestId: string,
   cookie: string
 ): Promise<PtaProblemLabel[]> {
-  const res = await fetch(
-    `${PTA_API}/problem-sets/${contestId}/exam-problem-types`,
-    {
-      headers: {
-        Accept: "application/json",
-        Cookie: cookie,
-      },
-    }
+  const data = await ptaFetch<{ labels?: PtaProblemLabel[] }>(
+    `/problem-sets/${contestId}/exam-problem-types`,
+    cookie
   );
-  if (!res.ok) throw new Error(`获取题目类型失败: ${res.status}`);
-  const data = await res.json();
   return data.labels || [];
 }
 
@@ -66,17 +93,10 @@ export async function fetchPtaRankingsPage(
   cookie: string,
   page: number
 ): Promise<PtaRankingResponse> {
-  const res = await fetch(
-    `${PTA_API}/problem-sets/${contestId}/common-rankings?page=${page}&limit=${PAGE_SIZE}`,
-    {
-      headers: {
-        Accept: "application/json",
-        Cookie: cookie,
-      },
-    }
+  return ptaFetch<PtaRankingResponse>(
+    `/problem-sets/${contestId}/common-rankings?page=${page}&limit=${PAGE_SIZE}`,
+    cookie
   );
-  if (!res.ok) throw new Error(`获取排名失败: ${res.status}`);
-  return res.json();
 }
 
 export async function fetchPtaAllRankings(

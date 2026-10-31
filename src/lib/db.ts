@@ -14,7 +14,12 @@ export function saveDb(): void {
   const dbPath = globalForDb.__dashboardDbPath;
   if (db && dbPath) {
     const data = db.export();
-    fs.writeFileSync(dbPath, Buffer.from(data));
+    // 先写临时文件再原子 rename：
+    // writeFileSync 直接写目标文件是「先截断再写」，期间外部备份/读取
+    // （如 cron 定时 cp）会拿到半截文件。rename 在同一文件系统内是原子的。
+    const tmpPath = `${dbPath}.tmp`;
+    fs.writeFileSync(tmpPath, Buffer.from(data));
+    fs.renameSync(tmpPath, dbPath);
     // sql.js 的 export() 内部会 close + reopen 连接，而 foreign_keys 是连接级设置，
     // 不重新打开的话第一次写库之后级联删除就静默失效（删比赛/换队会残留孤儿数据）。
     db.run("PRAGMA foreign_keys = ON");

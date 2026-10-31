@@ -303,10 +303,11 @@ export async function PUT(
 
   saveDb();
 
-  if (ptaConfigChanged) {
-    stopPtaSync(compId);
+  // 定时器是否该跑，取决于「是否配齐 PTA 信息」+「比赛是否正在进行」：
+  // 后者不能用 ptaConfigChanged 判定，因为改时间/改名同样会改变比赛状态。
+  {
     const configRows = db.exec(
-      `SELECT access_cookie, pta_contest_id FROM competitions WHERE id = ${compId}`
+      `SELECT access_cookie, pta_contest_id, start_time, end_time, duration_minutes, status FROM competitions WHERE id = ${compId}`
     );
     const config =
       configRows.length > 0 && configRows[0].values.length > 0
@@ -314,8 +315,18 @@ export async function PUT(
         : null;
     const cookie = ((config?.[0] as string) || "").trim();
     const ptaContestId = ((config?.[1] as string) || "").trim();
-    if (cookie && ptaContestId) {
+    const currentStatus = computeStatus(
+      config?.[2] as string | null,
+      config?.[3] as string | null,
+      config?.[4] as number | null,
+      String(config?.[5] ?? "")
+    );
+
+    if (ptaConfigChanged) stopPtaSync(compId);
+    if (cookie && ptaContestId && currentStatus === "active") {
       startPtaSync(compId, 60);
+    } else {
+      stopPtaSync(compId);
     }
   }
 

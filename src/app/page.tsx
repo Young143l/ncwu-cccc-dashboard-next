@@ -28,6 +28,21 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<CompetitionSummary | null>(null);
+  const [buildInfo, setBuildInfo] = useState<{ version: string; gitSha: string | null } | null>(null);
+
+  // 页脚显示版本号：部署后一眼确认线上跑的是哪个提交
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/health", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (alive && d) setBuildInfo({ version: d.version, gitSha: d.gitSha });
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const load = async () => {
     setError(null);
@@ -193,6 +208,16 @@ export default function DashboardPage() {
         destructive
         onConfirm={handleDelete}
       />
+
+      <footer className="mt-10 pb-6 text-center text-xs text-muted-foreground">
+        华北水利水电大学 天梯赛实时榜单
+        {buildInfo && (
+          <span className="ml-2 text-[11px] opacity-70">
+            v{buildInfo.version}
+            {buildInfo.gitSha ? ` · ${buildInfo.gitSha}` : ""}
+          </span>
+        )}
+      </footer>
     </div>
   );
 }
