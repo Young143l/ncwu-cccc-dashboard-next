@@ -3,7 +3,19 @@ import { verifyCookieValue, ADMIN_COOKIE } from "@/lib/auth";
 
 const PUBLIC_API_PATHS = ["/api/auth/login", "/api/auth/logout"];
 
+// 免登录的 GET 接口：观赛页只需要比赛详情（官方版/投屏版都只用它），
+// 再加上健康检查。其余 GET（比赛列表、同步状态里的学生学号姓名、分数明细）
+// 一律要求登录，避免名单类个人信息在公网裸奔。
+const PUBLIC_API_GET = [
+  /^\/api\/health\/?$/,
+  /^\/api\/competitions\/\d+\/?$/,
+];
+
 const PUBLIC_PAGE_PATHS = ["/login"];
+
+function isPublicApiGet(pathname: string, method: string): boolean {
+  return method === "GET" && PUBLIC_API_GET.some((re) => re.test(pathname));
+}
 
 function isPublic(pathname: string): boolean {
   if (PUBLIC_API_PATHS.includes(pathname)) return true;
@@ -18,9 +30,7 @@ export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (isPublic(pathname)) return NextResponse.next();
 
-  if (pathname.startsWith("/api/") && req.method === "GET") {
-    return NextResponse.next();
-  }
+  if (isPublicApiGet(pathname, req.method)) return NextResponse.next();
 
   const cookie = req.cookies.get(ADMIN_COOKIE)?.value;
   if (verifyCookieValue(cookie)) return NextResponse.next();
