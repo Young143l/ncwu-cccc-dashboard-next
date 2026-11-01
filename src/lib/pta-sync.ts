@@ -205,6 +205,11 @@ export async function syncOnce(competitionId: number): Promise<number> {
       matchedCount++;
       matchedIds.add(memberId);
 
+      // 记录 PTA 榜位：数据源没有提交时间时，个人榜靠它维持官方顺序
+      db.run(
+        `UPDATE members SET pta_order = ${player.ptaOrder} WHERE id = ${memberId}`
+      );
+
       for (const label of PROBLEM_LABELS) {
         // 以 PTA 为准逐题覆盖：PTA 没返回的题就是 0 分。
         // 否则复用比赛记录、换了 PTA 比赛后，上一场的分数会残留在这个人名下。
@@ -232,6 +237,8 @@ export async function syncOnce(competitionId: number): Promise<number> {
     if (players.length === rankings.total) {
       for (const member of roster) {
         if (matchedIds.has(member.id)) continue;
+        // 榜位一律清空：否则会残留上一场的名次
+        db.run(`UPDATE members SET pta_order = NULL WHERE id = ${member.id}`);
         const hasPositive = db.exec(
           `SELECT 1 FROM scores WHERE member_id = ${member.id} AND score > 0 LIMIT 1`
         ).length > 0;

@@ -80,6 +80,7 @@ export async function getDb(): Promise<Database> {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       team_id INTEGER NOT NULL,
       name TEXT NOT NULL,
+      pta_order INTEGER DEFAULT NULL,
       FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
     )
   `);
@@ -107,6 +108,16 @@ export async function getDb(): Promise<Database> {
     compCols[0].values.some((row) => row[1] === "end_time");
   if (!hasEndTime) {
     db.run("ALTER TABLE competitions ADD COLUMN end_time TEXT");
+  }
+
+  // pta_order：成员在 PTA 官方榜单中的榜位（1 = 榜首）。
+  // 排名先看提交时间，数据源没有提交时间时（如复盘题目集）用它维持官方顺序。
+  const memberCols = db.exec("PRAGMA table_info(members)");
+  const hasPtaOrder =
+    memberCols.length > 0 &&
+    memberCols[0].values.some((row) => row[1] === "pta_order");
+  if (!hasPtaOrder) {
+    db.run("ALTER TABLE members ADD COLUMN pta_order INTEGER DEFAULT NULL");
   }
 
   // 历史库清理：早期版本 saveDb() 后外键失效，删除比赛/队伍时未级联，

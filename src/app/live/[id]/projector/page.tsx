@@ -8,7 +8,7 @@ import {
   PROBLEM_LABELS, ALL_MAX_SCORES,
   type Team, type Member, type QuestionScore,
 } from "@/types";
-import { recalcMember, recalcTeam } from "@/lib/score-calc";
+import { recalcMember, recalcTeam, rankTeams } from "@/lib/score-calc";
 import { parseCompetitionTime } from "@/lib/competition-status";
 import { useTeamScoreFlash } from "@/hooks/use-score-animation";
 
@@ -19,6 +19,7 @@ function convertDetail(detail: {
     members: Array<{
       id: number;
       name: string;
+      pta_order?: number | null;
       scores: Array<{
         problem_label: string;
         score: number;
@@ -40,7 +41,7 @@ function convertDetail(detail: {
           acceptTime: found?.accept_time ?? 0,
         };
       });
-      return recalcMember(String(m.id), m.name, scores);
+      return recalcMember(String(m.id), m.name, scores, m.pta_order ?? null);
     });
     return recalcTeam({ id: String(team.id), name: team.name, members });
   });
@@ -537,8 +538,8 @@ function ProjectorContent({
 
           {/* Scrollable list */}
           <div ref={listRef} className="flex-1 md:overflow-hidden">
-            {state.teams.map((team, idx) => (
-              <TeamRankRow key={team.id} team={team} rank={idx + 1} />
+            {rankTeams(state.teams).map(({ team, rank }) => (
+              <TeamRankRow key={team.id} team={team} rank={rank} />
             ))}
           </div>
         </div>

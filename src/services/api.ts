@@ -23,6 +23,8 @@ export interface MemberScore {
 export interface TeamMember {
   id: number;
   name: string;
+  /** 在 PTA 官方榜单中的榜位（1 = 榜首）；未参加或非 PTA 比赛为 null */
+  pta_order?: number | null;
   scores: MemberScore[];
 }
 

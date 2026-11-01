@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useScore } from "@/context/score-context";
 import { useScoreAnimation } from "@/hooks/use-score-animation";
+import { rankMembers, type RankedMember } from "@/lib/score-calc";
 import type { Member } from "@/types";
 
 const GPLT = "/gplt";
@@ -10,13 +11,6 @@ const PROGRESS_BLUE = `${GPLT}/student-assets/3079c545-5b3e-4bc9-8e01-71d42490b2
 const PROGRESS_YELLOW = `${GPLT}/student-assets/0394fbe5-3914-4696-81e3-91d3549c0f10.png`;
 const PROGRESS_RED = `${GPLT}/student-assets/bc20a93b-d4e1-4f68-b3e6-e05546fbbaa2.png`;
 const PROGRESS_CIRCLE = `${GPLT}/student-assets/f23bd2d9-a27b-41b6-9b74-4688e7c0d437.png`;
-
-interface RankedMember {
-  member: Member;
-  teamId: string;
-  teamName: string;
-  rank: number;
-}
 
 function PersonPipes({
   member,
@@ -158,7 +152,7 @@ function PersonRow({
   onClick,
 }: {
   item: RankedMember;
-  rank: number;
+  rank: number | null;
   isSelected: boolean;
   onClick: () => void;
 }) {
@@ -170,7 +164,7 @@ function PersonRow({
       onClick={onClick}
     >
       <div className="badge_xcZuC">
-        <p className="gpltNumber_x1pEx">{rank}</p>
+        <p className="gpltNumber_x1pEx">{rank ?? "-"}</p>
       </div>
       <PersonPipes member={item.member} teamName={item.teamName} />
       <div className="score_ulq1B">
@@ -183,20 +177,10 @@ function PersonRow({
 export function GpltIndividualRank() {
   const { state, dispatch } = useScore();
 
-  const rankedMembers: RankedMember[] = useMemo(() => {
-    const all: Omit<RankedMember, "rank">[] = [];
-    for (const team of state.teams) {
-      for (const member of team.members) {
-        all.push({ member, teamId: team.id, teamName: team.name });
-      }
-    }
-    all.sort(
-      (a, b) =>
-        b.member.totalScore - a.member.totalScore ||
-        a.member.name.localeCompare(b.member.name)
-    );
-    return all.map((item, idx) => ({ ...item, rank: idx + 1 }));
-  }, [state.teams]);
+  const rankedMembers: RankedMember[] = useMemo(
+    () => rankMembers(state.teams),
+    [state.teams]
+  );
 
   return (
     <>

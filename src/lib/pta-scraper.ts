@@ -73,6 +73,8 @@ interface PtaRankingResponse {
 export interface PtaPlayerScore {
   name: string;
   studentNumber: string | null;
+  /** 在 PTA 官方榜单中的榜位（1 = 榜首），即返回数组的顺序 */
+  ptaOrder: number;
   score: Record<string, number>;
   acceptTime: Record<string, number>;
 }
@@ -145,7 +147,7 @@ export function transformPtaData(
   const hasLabelMap = Object.keys(labelByProblemId).length > 0;
   const problemIdOrder = problems.map((p) => p.id);
 
-  return rankings.commonRankings.map((entry) => {
+  return rankings.commonRankings.map((entry, index) => {
     const studentUser = rankings.studentUserById?.[entry.user.studentUserId];
     const name = studentUser?.name?.trim()
       || rankings.userById[entry.user.userId]?.nickname?.trim()
@@ -177,7 +179,15 @@ export function transformPtaData(
       }
     }
 
-    return { name, studentNumber: studentUser?.studentNumber?.trim() || null, score, acceptTime };
+    return {
+      name,
+      studentNumber: studentUser?.studentNumber?.trim() || null,
+      // 榜位直接用榜单顺序：PTA 的 rank 字段对同分的处理不统一
+      // （满分并列第 1、其他分却连续编号），按数组位置更稳定。
+      ptaOrder: index + 1,
+      score,
+      acceptTime,
+    };
   });
 }
 

@@ -27,6 +27,8 @@ export interface Member {
   id: string;
   name: string;
   scores: QuestionScore[];
+  /** 在 PTA 官方榜单中的榜位（1 = 榜首）；未参加或非 PTA 比赛为 null */
+  ptaOrder?: number | null;
   basicTotal: number;
   advancedTotal: number;
   topTotal: number;

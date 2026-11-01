@@ -41,11 +41,14 @@ export async function GET(
   if (teamRows.length > 0) {
     for (const t of teamRows[0].values) {
       const teamId = t[0] as number;
-      const memberRows = db.exec(`SELECT * FROM members WHERE team_id = ${teamId}`);
+      const memberRows = db.exec(
+        `SELECT id, name, pta_order FROM members WHERE team_id = ${teamId}`
+      );
 
       const members: Array<{
         id: number;
         name: string;
+        pta_order: number | null;
         scores: Array<{
           problem_label: string;
           score: number;
@@ -83,7 +86,12 @@ export async function GET(
             };
           });
 
-          members.push({ id: memberId, name: m[2] as string, scores });
+          members.push({
+            id: memberId,
+            name: m[1] as string,
+            pta_order: (m[2] as number | null) ?? null,
+            scores,
+          });
         }
       }
 

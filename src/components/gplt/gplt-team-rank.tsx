@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useScore } from "@/context/score-context";
 import { useScoreAnimation } from "@/hooks/use-score-animation";
+import { rankTeams } from "@/lib/score-calc";
 import type { Team } from "@/types";
 
 const GPLT = "/gplt";
@@ -148,7 +149,8 @@ function TeamRow({ team, rank }: { team: Team; rank: number }) {
 
 export function GpltTeamRank() {
   const { state } = useScore();
-  const teams = useMemo(() => state.teams, [state.teams]);
+  const rankedTeams = useMemo(() => rankTeams(state.teams), [state.teams]);
+  const teams = state.teams;
 
   return (
     <>
@@ -161,8 +163,8 @@ export function GpltTeamRank() {
         </p>
       </div>
       <div className="teamList_sy21T">
-        {teams.map((team, idx) => (
-          <TeamRow key={team.id} team={team} rank={idx + 1} />
+        {rankedTeams.map(({ team, rank }) => (
+          <TeamRow key={team.id} team={team} rank={rank} />
         ))}
         {teams.length === 0 && (
           <div className="empty_mnFop">

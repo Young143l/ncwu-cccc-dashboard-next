@@ -76,7 +76,10 @@ export function TeamRankRow({ team, rank }: { team: Team; rank: number }) {
   );
 }
 
+import { rankTeams } from "@/lib/score-calc";
+
 export function TeamRankTable({ teams }: { teams: Team[] }) {
+  const ranked = rankTeams(teams);
   return (
     <Table>
       <TableHeader>
@@ -91,8 +94,8 @@ export function TeamRankTable({ teams }: { teams: Team[] }) {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {teams.map((team, idx) => (
-          <TeamRankRow key={team.id} team={team} rank={idx + 1} />
+        {ranked.map(({ team, rank }) => (
+          <TeamRankRow key={team.id} team={team} rank={rank} />
         ))}
         {teams.length === 0 && (
           <TableRow>

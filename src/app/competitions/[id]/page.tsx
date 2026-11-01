@@ -36,8 +36,8 @@ import { MemberBadges } from "@/components/simple/member-badges";
 import { PtaConfigDialog } from "@/components/simple/pta-config-dialog";
 import { convertDetailToTeams } from "@/lib/server-utils";
 import { formatLocalDateTime, parseCompetitionTime } from "@/lib/competition-status";
-import { PROBLEM_LABELS, ALL_MAX_SCORES, type QuestionScore } from "@/types";
-import { recalcMember, recalcTeam } from "@/lib/score-calc";
+import { PROBLEM_LABELS, ALL_MAX_SCORES, type QuestionScore, type Team } from "@/types";
+import { rankMembers, rankTeams, recalcMember, recalcTeam } from "@/lib/score-calc";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -175,27 +175,34 @@ export default function CompetitionDetailPage() {
     }
   };
 
-  const handleExportTeamRank = () => {
-    if (!detail) return;
-    const teams = detail.teams.map((t) => {
+  // 把接口数据转成可计算的 Team[]（名次计算、导出共用）
+  const buildScoredTeams = (): Team[] => {
+    if (!detail) return [];
+    return detail.teams.map((t) => {
       const members = t.members.map((m) => {
         const existingMap = new Map(m.scores.map((s) => [s.problem_label, s]));
         const scores: QuestionScore[] = PROBLEM_LABELS.map((label, i) => ({
           problemLabel: label,
           score: existingMap.get(label)?.score ?? 0,
           maxScore: existingMap.get(label)?.max_score ?? ALL_MAX_SCORES[i] ?? 0,
+          acceptTime: existingMap.get(label)?.accept_time ?? 0,
         }));
-        return recalcMember(String(m.id), m.name, scores);
+        return recalcMember(String(m.id), m.name, scores, m.pta_order ?? null);
       });
       return recalcTeam({ id: String(t.id), name: t.name, members });
-    }).sort((a, b) => b.totalScore - a.totalScore);
+    });
+  };
+
+  const handleExportTeamRank = () => {
+    if (!detail) return;
+    const ranked = rankTeams(buildScoredTeams());
 
     const header = "排名,队伍,基础分,进阶分,登顶分,总分,人数,队员";
-    const rows = teams.map((team, idx) => {
+    const rows = ranked.map(({ team, rank }) => {
       const memberCol = team.members
         .map((m) => `${m.name}(${m.basicTotal}|${m.advancedTotal}|${m.topTotal}|${m.totalScore})`)
         .join(";");
-      return `${idx + 1},${team.name},${team.basicTotal},${team.advancedTotal},${team.topTotal},${team.totalScore},${team.members.length},"${memberCol}"`;
+      return `${rank},${team.name},${team.basicTotal},${team.advancedTotal},${team.topTotal},${team.totalScore},${team.members.length},"${memberCol}"`;
     });
     const csv = header + "\n" + rows.join("\n");
     downloadCsv(csv, `${detail.name}-队伍排名`);
@@ -203,23 +210,13 @@ export default function CompetitionDetailPage() {
 
   const handleExportIndividualRank = () => {
     if (!detail) return;
-    const all: Array<{ name: string; team: string; basic: number; advanced: number; top: number; total: number }> = [];
-    for (const t of detail.teams) {
-      for (const m of t.members) {
-        const existingMap = new Map(m.scores.map((s) => [s.problem_label, s]));
-        const scores: QuestionScore[] = PROBLEM_LABELS.map((label, i) => ({
-          problemLabel: label,
-          score: existingMap.get(label)?.score ?? 0,
-          maxScore: existingMap.get(label)?.max_score ?? ALL_MAX_SCORES[i] ?? 0,
-        }));
-        const member = recalcMember(String(m.id), m.name, scores);
-        all.push({ name: member.name, team: t.name, basic: member.basicTotal, advanced: member.advancedTotal, top: member.topTotal, total: member.totalScore });
-      }
-    }
-    all.sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+    const ranked = rankMembers(buildScoredTeams());
 
     const header = "排名,姓名,队伍,基础分,进阶分,登顶分,总分";
-    const rows = all.map((item, idx) => `${idx + 1},${item.name},${item.team},${item.basic},${item.advanced},${item.top},${item.total}`);
+    const rows = ranked.map(
+      ({ member, teamName, rank }) =>
+        `${rank ?? ""},${member.name},${teamName},${member.basicTotal},${member.advancedTotal},${member.topTotal},${member.totalScore}`
+    );
     const csv = header + "\n" + rows.join("\n");
     downloadCsv(csv, `${detail.name}-个人排名`);
   };

@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useScore } from "@/context/score-context";
 import { useScoreAnimation } from "@/hooks/use-score-animation";
+import { rankMembers } from "@/lib/score-calc";
 import type { Member } from "@/types";
 import {
   Table,
@@ -38,31 +39,15 @@ export function IndividualRankTable({
   const { state, dispatch } = useScore();
 
   const rankedMembers = useMemo(() => {
-    const all: Array<{
-      member: (typeof state.teams)[number]["members"][number];
-      teamId: string;
-      teamName: string;
-    }> = [];
-    for (const team of state.teams) {
-      for (const member of team.members) {
-        all.push({ member, teamId: team.id, teamName: team.name });
-      }
-    }
-
-    const filtered = searchText
-      ? all.filter(
-          (item) =>
-            item.member.name.includes(searchText) ||
-            item.teamName.includes(searchText)
-        )
-      : all;
-
-    filtered.sort(
-      (a, b) =>
-        b.member.totalScore - a.member.totalScore ||
-        a.member.name.localeCompare(b.member.name)
+    // 先按全局名次排好（名次是全局的），再按搜索词过滤，
+    // 否则搜索后名次会从 1 重新编号，看起来像排名变了
+    const ranked = rankMembers(state.teams);
+    if (!searchText) return ranked;
+    return ranked.filter(
+      (item) =>
+        item.member.name.includes(searchText) ||
+        item.teamName.includes(searchText)
     );
-    return filtered.map((item, idx) => ({ ...item, rank: idx + 1 }));
   }, [state.teams, searchText]);
 
   return (
@@ -112,7 +97,7 @@ function IndividualRankRow({
   item: {
     member: Member;
     teamName: string;
-    rank: number;
+    rank: number | null;
   };
   isSelected: boolean;
   onClick: () => void;
@@ -127,10 +112,12 @@ function IndividualRankRow({
       onClick={onClick}
     >
       <TableCell className="text-center">
-        {item.rank <= 3 ? (
+        {item.rank !== null && item.rank <= 3 ? (
           <MedalBadge rank={item.rank} />
         ) : (
-          <span className="text-sm text-muted-foreground">{item.rank}</span>
+          <span className="text-sm text-muted-foreground">
+            {item.rank ?? "-"}
+          </span>
         )}
       </TableCell>
       <TableCell className="text-center font-medium">

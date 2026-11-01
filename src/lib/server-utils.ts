@@ -16,6 +16,7 @@ export interface CompetitionApiData {
     members: Array<{
       id: number;
       name: string;
+      pta_order?: number | null;
       scores: Array<{
         problem_label: string;
         score: number;
@@ -41,7 +42,12 @@ export function convertDetailToTeams(data: CompetitionApiData): Team[] {
           acceptTime: found?.accept_time ?? 0,
         };
       });
-      return recalcMember(String(m.id), m.name, scores);
+      return recalcMember(
+        String(m.id),
+        m.name,
+        scores,
+        m.pta_order ?? null
+      );
     });
     return recalcTeam({ id: String(team.id), name: team.name, members });
   });
